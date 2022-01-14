@@ -1,0 +1,24 @@
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include CONGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include ENTRYCMD.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include EXEC.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include EXPEVAL.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include EXPFUN.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include EXPRUN.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include FILEGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include FINFGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include FORMDP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include FORMGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include FORMIN.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include FORMPRT.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include HELP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include INDCTGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include INTRGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include NOGRGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include OPENGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include PRINTGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include PRTEDIT.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include RUNERROR.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include RUNTIME.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include SEQGRP.C
+$TURBOC$\tcc -c -ml -I$DFINCLUDE$ -I$TURBOC$\include STRGRP.C
+

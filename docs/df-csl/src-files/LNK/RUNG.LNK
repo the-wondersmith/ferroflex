@@ -1,0 +1,21 @@
+$TURBOC$\lib\c0l+
++
+argindx.obj argns.obj args.obj dmsfind.obj expgen.obj+
+expparse.obj fdef.obj formarg.obj getcline.obj initcfg.obj+
+savrun.obj start.obj zerofile.obj+
++
+congrp.obj factgrp.obj filegrp.obj finfgrp.obj formgrp.obj+
+indctgrp.obj intrgrp.obj opengrp.obj printgrp.obj+
+seqgrp.obj strgrp.obj+
++
+entrycmd.obj exec.obj expeval.obj expfun.obj exprun.obj+
+formdp.obj formin.obj formprt.obj+
+help.obj prtedit.obj runerror.obj runtime.obj+
++
+dfd.obj+
+graphgrp.obj+
++
+,dfrun,, $DFLIB$\flexlib+
+$TURBOC$\lib\mathl $TURBOC$\lib\emu $TURBOC$\lib\cl+
+$DFLIB$\graphcon
+

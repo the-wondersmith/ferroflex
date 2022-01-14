@@ -1,0 +1,369 @@
+
+                       PORTABILITY ISSUES
+
+
+This is a surprise, unedited chapter for the DataFlex C Source & 
+Library.  It addresses some issues concerning portability for 
+those of you who develop your software to run on multiple, 
+dissimilar operating systems.  The operating systems that 
+DataFlex runs on are CPM type, DOS type, Unix/Xenix type, and VMS 
+type.  These few pages will aid you in the development of OS 
+independent source code, hopefully minimizing your development 
+time.
+
+Data Access Corp maintains one source code for all of DataFlex.  
+This means that there is one group of source files for DFFILE, 
+DFCOMP, DFRUN, etc.  There is not a unique group of source files 
+for DFCOMP,etc, on DOS, separate from UNIX, CPM, and VMS.
+
+This may be good, this may be bad; however, it does have its 
+advantages.  Maintaining one source code reduces a huge overhead 
+of making a change, and attempting to insert it in the right 
+place in all source codes.  What has to happen is that the 
+changed file must be ported to all environments.  Even though 
+this too is time consuming, it is "dumb" time.  The amount of 
+knowledge required to port the file around is small compared with 
+the amount of knowledge required to effect the change in all 
+source codes and retest the software.  With porting the one file, 
+the change still must be tested, but you are not testing for 
+accidental errors that could have been added to other parts of 
+the program.
+
+If your intentions are to support a wide range of systems, you 
+may wish to consider what takes the most time when either taking 
+on a new machine, or updating a revision on an existing machine.  
+This assumes that your software is already developed.
+
+Rating       Task
+======       ================================================
+
+  1          Setup of machine, if a new machine
+  3          Transfer of software
+  2          Compilation of software
+  3          Testing of software
+  3          Creating distribution / production directories,
+               if a new machine
+  2          Creating / updating installation programs
+
+
+                          Rating legend
+  
+     1 = Fairly routine, doesn't take much time
+     2 = Fairly routine if problems don't crop up.
+               if problems occur, could turn into rating #3.
+     3 = Very time consuming.
+
+
+You can greatly reduce the time required for the transfer of the 
+software by networking your computers.  If you can't network your 
+computers, you are faced with the terrible task of finding (we're 
+really talking about Unix/Xenix here) a device on one of your 
+other machines that is compatible with the machine you wish to 
+put your software on.  This may not be possible in your case.  
+
+If a compatible device (ie disk or tape format) cannot be found, 
+you must then connect two machines via an rs232 cable and use 
+some sort of communications package to transfer the software.  
+Establishing a good connection is a big job in itself.  You may 
+or may not need a null modem, and then you have to guess to find 
+the appropriate hand shaking.  The quality of the connection will 
+determine the speed at which you can transfer your software.  At 
+one point on two machines, the best speed we could attain was 
+1200 baud.  That transfer took the better part of a day.  
+Nowadays we have become experienced in this area, and usually can 
+transfer at 9600 or 19200 baud, when necessary.  At those speeds, 
+it takes about one hour to two hours.  The package we use for 
+this type of transfer is the public domain program "kermit", 
+which has proved reliable.  Here's something for you to ponder: 
+what do you do when you get a new machine, with no formats 
+compatible with any of your existing machines, and no 
+communications package?
+
+To compare an rs232 transfer with a tape transfer, a tape 
+transfer may take 20 minutes (depending on the machines, of 
+course): 10 minutes to backup to the tape, and 10 minutes to 
+restore from the tape.  
+
+
+                    WRITING PORTABLE SOFTWARE
+
+
+When writing DataFlex programs, you don't really have to worry 
+about the differences in the operating systems.  This is because 
+we've worked them out inside the runtime system.  But, hey, 
+that's not why you're here.  You're using C, and to an extent, 
+you now have to be concerned.
+
+While your C programs are very portable, the operating systems 
+you will be running on can be so different, your programs 
+suddenly become not portable without changes.  It is surprising 
+to find out how many differences there are between Unix systems.  
+There are many implementations of Unix System V, and minor 
+diffences can create major problems.
+
+Creating portable software takes alot of practice.  It is not 
+realistic to expect a port of your software to be a 1-2-3 
+process.  An example is on DOS where you've declared an array to 
+be char string[50], and without your realizing it you're using 55 
+characters in some function.  You don't have a problem because 
+DOS will let you do anything, so long as it doesn't crash your 
+machine.  However, when you port your software to a machine 
+running UNIX, your program runs fine for a while, and then you 
+suddenly get "core dump".  Tracking the problem down could be 
+like finding a needle in a hay stack.  What's worse, is that the 
+program crash will not occur on all Unix machines.  VMS is a 
+little better about the problem.  It will tell you the function 
+that caused the crash.
+
+Once you've corrected the problem, your conscience should tell 
+you that this bug exists on all your environments, and the fix 
+should be re-ported around.  Here we go again.
+
+
+                COMPILER SWITCHES BASED ON SYSTEM
+
+
+We've defined compiler switches that describe the groups of 
+operating systems that we support.  The approriate one will be 
+true on the system which you are compiling on.  There are a few 
+more than are listed here, and can be found in <standard.h>.
+
+
+     MSDOS     - True if compiling on a DOS type system
+     UNIX      - True if compiling on a UNIX/XENIX type system.
+     VMS       - True if compiling on VMS.
+
+
+
+                         EXAMPLE OF USE
+
+
+Besides demonstrating the use of the OS compiler switches, this 
+is just one example of an unportable area of a program.  There 
+are many others, that only practice will reveal.  The moral of 
+the story is that you should have a flexible amount of time 
+allocated for the porting process.
+
+
+
+          #include <standard.h>
+          #include <scfcbtype.h>
+
+          set_printer(prnfile)
+          struct sfcbtype *prnfile;
+          {
+
+               writels("Setting up file for printer");
+
+          #ifdef MSDOS
+               seqopen(prnfile,"PRN:",TRUE);
+          #endif
+          #ifdef UNIX
+               seqopen(prnfile,"/dev/lp",TRUE);
+          #endif
+          #ifdef VMS
+               seqopen(prnfile,"sys$print",TRUE);
+          #endif
+
+          }
+
+
+
+                            parsefn()
+
+
+The above is just the beginning of the changes you will have to 
+make.  The format of path names and file names are different on 
+all operating environments that we support.  Taking an example 
+from each environment type, we have:
+
+
+          VMS:      $disk1:[user.dataflex.csl]vendor.dat;1
+
+          device    = $disk1:
+          path      = [user.dataflex.csl]
+          root name = vendor
+          extension = dat
+          version   = 1
+
+
+          UNIX:     /user/dataflex/csl/vendor.dat
+
+          path      = /user/dataflex/csl
+          root name = vendor
+          extension = dat
+
+
+          DOS:      d:\user\dataflex\csl\vendor.dat
+
+          device    = d:
+          path      = \user\dataflex\csl
+          root name = vendor
+          extension = dat
+
+
+These inconsistencies lead to the development of a library 
+function, parsefn(), to parse a path/file name into its 
+constituent parts.  It understands all environments supported by 
+CS&L.  It is currently not documented in the CS&L manual, but may 
+be in the future.
+
+
+           It may be called with the following syntax:
+
+
+     parsefn(completename,node,device,path,fname,extn,ver);
+
+
+               With the parameters being strings:
+
+                   char      completename[80];
+                   char      node[80],device[80],
+                             path[80],fname[80],extn[80],
+                             ver[80];
+
+
+
+                    Description of Parameters
+
+
+       Parameter           Description
+       ============        ===============================
+
+       completename        Input string to function
+
+       device              Device or drive name
+       path                Path of file
+       fname               Root name
+       extn                Extension of file
+       ver                 Version of file (if on VMS)
+
+
+The function is supplied with 'completename', and will write the 
+component parts to the appropriate parameters.
+
+
+
+                         EXAMPLE OF USE
+
+
+The following example returns the root name of a file, regardless 
+of the operating system you are on (and subsequently regardless 
+of the format of the file name).
+
+
+
+               get_rootname( file )
+               char file[];
+               {
+               static char node[80],device[80],
+                    path[80],fname[80],extn[80],
+                    ver[80];
+
+                    parsefn(file,node,device,path,fname,
+                         extn,ver);
+
+                    return(fname);
+
+               }
+
+
+
+            IBM GRAPHICS CHARACTERS ARE NOT PORTABLE
+
+
+Do your customers like the extended PC character set?  Well, 
+those lines do not look the same when ported over to Unix, VMS, 
+and even Xenix!  The straight lines and corners that make up 
+those nice boxes will most likely turn into 3s, Ms, ?s, and other 
+interesting characters.
+
+One method of maintaining transportability would be to use the 
+#ifdef approach shown above, as this example demonstrates:
+
+
+          #ifdef MSDOS
+          #define upperright  ...
+          #define upperleft   ...
+          #define lowerright  ...
+          #define lowerleft   ...
+          #define column      ...
+          #define row         ...
+          #endif
+
+          #ifndef MSDOS
+          #define upperright  '.'
+          #define upperleft   '.'
+          #define lowerright  '\''
+          #define lowerleft   '`'
+          #define column      '|'
+          #define row         '-'
+          #endif
+
+
+But this introduces another problem.  These characters are not 
+supported by the famed editer vi, since vi only uses 7 bits of 
+every character.  Therefore, even though you are ignoring the 
+high bit characters on Unix and Xenix, after saving one change to 
+the source code, the unused high bit characters are no longer 
+high bit.  They actually become 3s, Ms, and ?s, and when you 
+transfer your changes around, your DOS versions look just as bad 
+as your Unix versions.
+
+We have found that the best solution is to further separate your 
+source code into system dependant modules, which you will only 
+find out what needs to go where after you have some experience 
+under your belt.  These system dependent modules go much beyond 
+graphics characters and will contain things like device names and 
+OS commands.
+
+Question:  Which machine contains your master source code?  If 
+you use graphics characters, at the very least its one that 
+supports these characters.
+
+
+                      INSTALLATION PROGRAM
+
+
+If you are providing a vertical market package, it is desirable 
+to sell your software in such a way that requires little or no 
+interaction on your part.  This might involve the use of an 
+installation program.  If you install your own software, this 
+topic may not be for you; however, at some point you will 
+probably run into the same types of problems outlined below.
+
+Generally, you will need a separate and distinct installation 
+program for each type of operating system you wish to support 
+vertically.  You will need one for DOS, one for CPM, one for 
+Unix/Xenix, and one for VMS.  Within each type of operating 
+system, the installation program may have to be customized to 
+each machine.  
+
+Lets take Unix / Xenix as an example.  Assume that due to the 
+size of your software, it will have to be distributed on three 
+diskettes.  Your first task is write a general Unix / Xenix 
+installation program for the machine you happen to be on.  You 
+must then choose a good format for the diskettes.  Here are some 
+typical choices:
+
+
+     Device name         Meaning
+
+     /dev/fd0            default for drive 0
+     /dev/fd048          48 TPI, whatever default is
+     /dev/fd048ds8       48 TPI, double sided, 8 tracks/side
+     /dev/fd048ds9       48 TPI, double sided, 9 tracks/side
+     /dev/fd048ss8       48 TPI, single sided, 8 tracks/side
+     /dev/fd048ss9       48 TPI, single sided, 9 tracks/side
+     /dev/fd096          96 TPI, whatever default is
+     /dev/fd096ds15      96 TPI, double sided, 15 tracks/side
+
+
+This subject will need to be addressed in your CS&L programs, 
+should they need to read or write from or to diskettes.  Once 
+your choice is made, you must choose the storage method for the 
+diskettes.  Typical choices are "tar", "mountable file system 
+(mkfs)", or "cpio".  We have been using mountable file systems 
+for diskettes, since it allows you to access files on the 
+diskette in the same manner as other files on your hard disk.
+

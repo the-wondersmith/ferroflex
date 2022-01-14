@@ -1,0 +1,55 @@
+[package]
+name = "ferroflex"
+version = "0.1.0"
+authors = ["The Wondersmith <the@wondersmith.dev>"]
+edition = "2021"
+
+description = "A Python DB-API v2 compliant interface for DataFlex flat-file databases"
+
+homepage = "https://github.com/the-wondersmith/ferroflex"
+documentation = "https://github.com/the-wondersmith/ferroflex"
+repository = "https://github.com/the-wondersmith/ferroflex"
+
+license = "AGPL-3.0-or-later"
+
+keywords = ["dataflex", "python", "flat-file", "database", "db-api"]
+categories = ["database", "database-implementations", "data-structures", "parser-implementations"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "ferroflex"                   # The name of the target.
+crate-type = ["cdylib", "rlib"]     # The crate types to generate.
+# path = "src/lib.rs"               # The source file of the target.
+# test = true                       # Is tested by default.
+# doctest = true                    # Documentation examples are tested by default.
+# bench = true                      # Is benchmarked by default.
+# doc = true                        # Is documented by default.
+# plugin = false                    # Used as a compiler plugin (deprecated).
+# proc-macro = false                # Set to `true` for a proc-macro library.
+# harness = true                    # Use libtest harness.
+# edition = "2021"                  # The edition of the target.
+# required-features = []            # Features required to build this target (N/A for lib).
+
+[dependencies]
+
+bstr = "^0.2"
+chrono = "^0.4"
+caseless = "^0.2"
+byteorder = "^1.4"
+itertools = "^0.10"
+async-trait = "^0.1"
+pyo3-chrono = "^0.3"
+lazy_static = "1.4.0"
+async-recursion = "^1"
+prettytable-rs = "^0.8"
+pyo3-build-config = "^0.15"
+pyo3 = { version = "^0.15", features = ["serde", "nightly", "extension-module"] }
+num = { version = "^0.4", default-features = false, features = ["std", "alloc", "serde"] }
+serde = { version = "^1.0", default-features = false, features = ["rc", "std", "alloc", "derive", "unstable"] }
+gluesql = { version = "^0.10", default-features = false, features = ["index", "metadata", "alter-table",  "transaction"] }
+
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]

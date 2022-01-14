@@ -1,0 +1,11 @@
+$TURBOC$\lib\c0l+
+*USER*
+$DFLIB$\nograph.obj+
+,+
+*EXENAME*
+,,+
+$DFLIB$\flexlib+
+$TURBOC$\lib\mathl+
+$TURBOC$\lib\emu+
+$TURBOC$\lib\cl
+

@@ -1,0 +1,11 @@
+$TURBOC$\lib\c0l+
+makeprj.obj +
+$DFLIB$\nograph.obj+
+,+
+makeprj +
+,,+
+$DFLIB$\flexlib+
+$TURBOC$\lib\mathl+
+$TURBOC$\lib\emu+
+$TURBOC$\lib\cl
+

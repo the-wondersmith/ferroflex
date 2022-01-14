@@ -1,0 +1,53 @@
+           CS&L Installation Program for CS&L REV 2.3b 
+    Copyright (C) 1988 Data Access Corp, All rights reserved.
+
+    Thank you for purchasing the DataFlex C Source & Library
+
+This program will install the DataFlex C Source & Library on your 
+hard disk.  Due to the many variables associated with this 
+installation, it is necessary that you have completely read the 
+installation notes.  Before proceeding, you should have the 
+answers to the following questions: 
+
+          - Directory that Turbo-C software resides
+          - Directory to install CS&L Source files
+          - Directory to install CS&L Library files
+          - Directory to install CS&L Include files
+          - FULL DATAFLEX DEVELOPMENT LICENSE directory
+
+The names of the default directories have been arbitrarily 
+chosen, and may be renamed at your descretion.
+
+As a precaution, all files should be backed up, since the 
+installation program will overwrite any pre-existing files with 
+the same name. ^
+
+
+            Additional notes concerning installation
+
+
+
+The environment variable COMSPEC must point to a valid 
+command.com.  Otherwise, various COPY commands may not function.  
+If the installation appears to be skipping over groups of files, 
+check this environment variable, and re-run the installation 
+program.  ^
+
+
+               Additional notes concerning linking
+
+
+
+If you link with the /D option to display duplicate symbols, you 
+will be alerted of the following duplicate symbols:
+
+         _SETCOLOR           _MATHERR            _GOTOXY
+         _CLOSEGRAPHICS      _EOF                _LOCK
+         _DISPLAY            _FREEMEM            _UNLOCK
+
+This is because the programs you are creating draw their 
+functions from libraries that come from different manufacturers.  
+Any particular manufacturer may have a library function that is 
+defined by another manufacturer.  These messages are harmless and 
+should be ignored.  ^
+

@@ -1,0 +1,17 @@
+$TURBOC$\lib\c0l+
+*USER*
+$DFLIB$\nograph.obj+
+expeval.obj dmsfind.obj exprun.obj expparse.obj expgen.obj+
+expfun.obj args.obj argns.obj argindx.obj fdef.obj+
+formarg.obj formdp.obj formin.obj formprt.obj+
+help.obj initcfg.obj images.obj getcline.obj+
+prtedit.obj start.obj+
+,+
+*EXENAME*
+,,$DFLIB$\flexlib+
++
+$TURBOC$\lib\mathl+
+$TURBOC$\lib\emu+
+$TURBOC$\lib\cl
+
+
