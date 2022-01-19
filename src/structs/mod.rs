@@ -29,9 +29,6 @@ pub(crate) fn register_components(py: Python, ferroflex_module: &PyModule) -> Py
     // Create the `structs` sub-module
     let structs_module = PyModule::new(py, "ferroflex.structs")?;
 
-    // pyo3::{Python, PyResult}
-    // pyo3::types::PyModule
-
     // Add the class objects to the module
 
     // Column
@@ -51,7 +48,7 @@ pub(crate) fn register_components(py: Python, ferroflex_module: &PyModule) -> Py
     structs_module.add_class::<FieldSegment>()?;
 
     // Table
-    structs_module.add_class::<Row>()?;
+    // structs_module.add_class::<Row>()?;
     structs_module.add_class::<Header>()?;
     structs_module.add_class::<DataFlexTable>()?;
 

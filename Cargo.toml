@@ -34,22 +34,20 @@ crate-type = ["cdylib", "rlib"]     # The crate types to generate.
 [dependencies]
 
 bstr = "^0.2"
-chrono = "^0.4"
 caseless = "^0.2"
 byteorder = "^1.4"
 itertools = "^0.10"
-async-trait = "^0.1"
-pyo3-chrono = "^0.3"
-lazy_static = "1.4.0"
-async-recursion = "^1"
+lazy_static = "^1.4"
 prettytable-rs = "^0.8"
 pyo3-build-config = "^0.15"
+pyo3-chrono = { version = "^0.3", features = ["serde"] }
 pyo3 = { version = "^0.15", features = ["serde", "nightly", "extension-module"] }
 num = { version = "^0.4", default-features = false, features = ["std", "alloc", "serde"] }
 serde = { version = "^1.0", default-features = false, features = ["rc", "std", "alloc", "derive", "unstable"] }
-gluesql = { version = "^0.10", default-features = false, features = ["index", "metadata", "alter-table",  "transaction"] }
+gluesql = { version = "^0.10", default-features = false, features = ["index", "metadata", "alter-table",  "transaction"], optional = true }
 
 
 [features]
+sql-engine = ["gluesql"]
 extension-module = ["pyo3/extension-module"]
 default = ["extension-module"]

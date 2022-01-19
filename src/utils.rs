@@ -17,8 +17,8 @@ use num::traits::abs;
 use pyo3;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use pyo3_chrono::chrono;
-use pyo3_chrono::NaiveDate;
+use pyo3_chrono::chrono::{Duration, NaiveDate};
+use pyo3_chrono::NaiveDate as PyDate;
 
 // Crate-Level Imports
 use crate::exceptions::{BCDDecodingError, TextFieldDecodingError};
@@ -80,12 +80,19 @@ pub fn path_from_string<T: AsRef<str>>(string_path: T, resolve: Option<bool>) ->
     }
 }
 
-pub fn bytes_from_file(filepath: &str, start: Option<u64>, end: Option<u64>) -> PyResult<Vec<u8>> {
+pub fn bytes_from_file<P: AsRef<str>, U: Into<u64>>(
+    filepath: P,
+    start: Option<U>,
+    end: Option<U>,
+) -> PyResult<Vec<u8>> {
     // Turn `filepath` into a usable PathBuf
-    let filepath: PathBuf = path_from_string(filepath, None);
+    let filepath: PathBuf = path_from_string(filepath.as_ref(), None);
 
     // Ensure we have a valid starting offset
-    let start = start.unwrap_or(0u64);
+    let start = match start {
+        Some(value) => value.into(),
+        None => 0u64,
+    };
 
     // Grab a read-handle for the specified file
     let mut origin: fs::File = fs::OpenOptions::new().read(true).open(&filepath)?;
@@ -94,14 +101,12 @@ pub fn bytes_from_file(filepath: &str, start: Option<u64>, end: Option<u64>) -> 
     let mut file_bytes: Vec<u8> = Vec::new();
 
     // Seek to the specified offset
-    origin.seek(SeekFrom::Start(start as u64))?;
+    origin.seek(SeekFrom::Start(start))?;
 
     // Read the requested number of bytes into the buffer
     if let Some(val) = end {
-        let byte_count: u64 = (val as i64 - start as i64).abs() as u64;
-
         Read::by_ref(&mut origin)
-            .take(byte_count)
+            .take(val.into() - start)
             .read_to_end(&mut file_bytes)?;
     } else {
         Read::by_ref(&mut origin).read_to_end(&mut file_bytes)?;
@@ -194,8 +199,8 @@ pub fn int_from_bcd_bytes(data: &[u8], signed: Option<bool>) -> PyResult<i64> {
 #[pyfunction]
 #[pyo3(text_signature = "(data: bytes, decimals: int = 1) -> float")]
 /// Get the value of a floating point number stored as a packed Binary Coded Decimal (i.e. a series of bytes).
-pub fn float_from_bcd_bytes(data: &[u8], decimals: Option<u8>) -> PyResult<f64> {
-    let decimals: u8 = decimals.unwrap_or(1u8);
+pub fn float_from_bcd_bytes(data: &[u8], decimals: Option<u64>) -> PyResult<f64> {
+    let decimals: u64 = decimals.unwrap_or(1u64);
 
     let left = data[0..data.len() - (decimals as usize)].to_vec();
     let right = data[(data.len() - (decimals as usize))..].to_vec();
@@ -217,28 +222,27 @@ pub fn float_from_bcd_bytes(data: &[u8], decimals: Option<u8>) -> PyResult<f64> 
 #[pyfunction]
 #[pyo3(text_signature = "(data: bytes) -> Optional[datetime.date]")]
 /// Get the value of a date stored as a series of packed Binary Coded Decimals.
-pub fn date_from_bytes(data: &[u8]) -> PyResult<Option<NaiveDate>> {
-    let date_offset: PyResult<i64> = int_from_bcd_bytes(data, Some(false));
-
-    if date_offset.is_err() {
-        return Ok(None);
-    }
-
-    // 3 day difference comes from where?
+pub fn date_from_bytes(data: &[u8]) -> PyResult<Option<PyDate>> {
     // epoch start date - 1642-09-17
-    let date_offset: i64 = (date_offset.unwrap() - 700000) - 3;
+    let date_offset: i64 = match int_from_bcd_bytes(data, Some(false)) {
+        Ok(offset) => (offset - 700003),
+        Err(_) => {
+            return Ok(None);
+        }
+    };
 
-    if date_offset < 0 {
+    let epoch_start: NaiveDate = if date_offset < 0 {
         // date so far in the past that
         // it's probably just a null field
         return Ok(None);
-    }
+    } else {
+        NaiveDate::from_ymd(1642, 9, 17)
+    };
 
-    let epoch_start: chrono::NaiveDate = chrono::NaiveDate::from_ymd(1642, 9, 17);
-
-    let ret_val: NaiveDate = (epoch_start + chrono::Duration::days(date_offset)).into();
-
-    Ok(ret_val.into())
+    // Add the offset to the epoch start date
+    Ok(Some(PyDate::from(
+        epoch_start + Duration::days(date_offset),
+    )))
 }
 
 #[pyfunction]
@@ -307,7 +311,7 @@ pub fn bytes_from_file_py(
 #[cfg(test)]
 mod tests {
     #[allow(unused_imports)]
-    use crate::utils::{
+    use super::{
         bytes_from_file, bytes_from_file_py, date_from_bytes, float_from_bcd_bytes,
         int_from_bcd_bytes, int_from_packed_bcd, int_from_unpacked_bcd, path_from_string,
         string_from_bytes, string_from_path,

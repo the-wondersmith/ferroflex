@@ -5,8 +5,7 @@ use std::fmt;
 use std::iter::IntoIterator;
 
 // Third-Party Imports
-use gluesql::core::data::SchemaIndex; // SchemaIndexOrd
-use prettytable::{Cell, Row as PrintableRow, Table as PrettyTable};
+use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
 use pyo3;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -22,7 +21,7 @@ use crate::structs::segment::FieldSegment;
 /// A structured representation of an index's
 /// definition in the header of a DataFlex table file
 pub struct Index {
-    // #[pyo3(get)]
+    #[pyo3(get)]
     /// Denotes the index as a "batch" index
     pub r#type: IndexType,
     #[pyo3(get)]
@@ -32,7 +31,7 @@ pub struct Index {
     #[pyo3(get)]
     /// The index's field segments
     pub segments: Vec<FieldSegment>,
-    // #[pyo3(get)]
+    #[pyo3(get)]
     /// Denotes the index's "type"
     pub collation: IndexCollation,
 }
@@ -79,49 +78,13 @@ impl IntoIterator for Index {
 impl Index {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _field_values(&self) -> Vec<(String, String)> {
-        let mut table = PrettyTable::new();
-
-        table.add_row(PrintableRow::new(
-            self.segments
-                .iter()
-                .map(|seg| Cell::new(&seg.to_string()))
-                .collect::<Vec<Cell>>(),
-        ));
-
-        vec![
-            ("Type".to_string(), self.r#type.to_string()),
-            ("Field Count".to_string(), self.field_count.to_string()),
-            ("Collation".to_string(), self.collation.to_string()),
-            ("Segments".to_string(), table.to_string()),
-        ]
-    }
-
     fn _as_pretty_table(&self) -> PrettyTable {
-        let mut table = PrettyTable::new();
-
-        self._field_values().iter().for_each(|pair| {
-            table.add_row(PrintableRow::new(vec![
-                Cell::new(&pair.0),
-                Cell::new(&pair.1),
-            ]));
-        });
-
-        table
+        todo!()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
 
     // <editor-fold desc="// Public Methods ...">
-
-    pub fn schema(&self) -> SchemaIndex {
-        // SchemaIndex {
-        //     name: String,
-        //     expr: Expr,
-        //     order: SchemaIndexOrd,
-        // }
-        todo!()
-    }
 
     pub fn from_bytes(data: &[u8]) -> PyResult<Index> {
         let end: usize = match data.len() < 18 {
@@ -196,16 +159,22 @@ impl Index {
     fn pretty(slf: PyRefMut<Self>) -> String {
         slf._as_pretty_table().to_string()
     }
-
-    #[getter(r#type)]
-    fn get_index_type(slf: PyRefMut<Self>) -> PyResult<String> {
-        Ok(slf.r#type.to_string())
-    }
-
-    #[getter(collation)]
-    fn get_collation(slf: PyRefMut<Self>) -> PyResult<String> {
-        Ok(slf.collation.to_string())
-    }
 }
 
 // </editor-fold desc="// Index ...">
+
+// <editor-fold desc="// Tests ...">
+
+#[cfg(test)]
+mod tests {
+    #![allow(unused_imports)]
+    use super::Index;
+
+    #[test]
+    /// Test that the `Index` structure behaves as expected
+    fn gets_indexes() {
+        todo!()
+    }
+}
+
+// </editor-fold desc="// Tests ...">

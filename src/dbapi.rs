@@ -3,12 +3,12 @@
 
 // Third-Party Imports
 use pyo3;
-use pyo3::exceptions::{PyAttributeError, PyIndexError};
+use pyo3::exceptions::{PyAttributeError, PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PySliceIndices;
 
 // Crate-Level Imports
-use crate::{iif, AttrIndexOrSlice, ValueOrSlice};
+use crate::{iif, AttrIndexSliceOrItem, ValueOrSlice};
 
 // NOTE: At the time of this writing (2022-01-01), this crate is written with a prohibition
 //       against unsafe Rust code. As such, none of the structs exported to Python as classes
@@ -279,9 +279,10 @@ pub struct CursorDescription {
 unsafe impl Send for CursorDescription {}
 
 impl CursorDescription {
-    fn _get_item(&self, value: AttrIndexOrSlice) -> PyResult<ValueOrSlice<PyObject>> {
+    fn _get_item(&self, value: AttrIndexSliceOrItem<isize>) -> PyResult<ValueOrSlice<PyObject>> {
         Python::with_gil(|py| match value {
-            AttrIndexOrSlice::Attr(name) => Ok(ValueOrSlice::Value(match name {
+            AttrIndexSliceOrItem::Item(_) => Err(PyValueError::new_err("")),
+            AttrIndexSliceOrItem::Name(name) => Ok(ValueOrSlice::Value(match name {
                 "name" => self.name.to_object(py),
                 "type_code" => self.type_code.to_object(py),
                 "display_size" => self.display_size.to_object(py),
@@ -293,7 +294,7 @@ impl CursorDescription {
                     return Err(PyAttributeError::new_err(""));
                 }
             })),
-            AttrIndexOrSlice::Index(idx) => Ok(ValueOrSlice::Value(match idx {
+            AttrIndexSliceOrItem::Index(idx) => Ok(ValueOrSlice::Value(match idx {
                 0 | -7 => self.name.to_object(py),
                 1 | -6 => self.type_code.to_object(py),
                 2 | -5 => self.display_size.to_object(py),
@@ -305,7 +306,7 @@ impl CursorDescription {
                     return Err(PyIndexError::new_err(""));
                 }
             })),
-            AttrIndexOrSlice::Slice(slc) => {
+            AttrIndexSliceOrItem::Slice(slc) => {
                 let indexes: PySliceIndices = slc.indices(3)?;
 
                 let (start, end) = (indexes.start, indexes.stop);
@@ -320,7 +321,7 @@ impl CursorDescription {
                 let mut items: Vec<PyObject> = Vec::new();
 
                 for idx in start..end {
-                    match self._get_item(AttrIndexOrSlice::Index(idx)).unwrap() {
+                    match self._get_item(AttrIndexSliceOrItem::Index(idx)).unwrap() {
                         ValueOrSlice::Value(value) => items.push(value),
                         ValueOrSlice::Slice(values) => {
                             values.iter().for_each(|value| items.push(value.clone()))
@@ -339,7 +340,7 @@ impl CursorDescription {
     /// Get a `CursorDescription` field by numerical index
     fn __getitem__(
         slf: PyRefMut<Self>,
-        value: AttrIndexOrSlice,
+        value: AttrIndexSliceOrItem<isize>,
     ) -> PyResult<ValueOrSlice<PyObject>> {
         slf._get_item(value)
     }
@@ -738,3 +739,31 @@ impl Cursor {
 // </editor-fold desc="// Type Objects ...">
 
 // </editor-fold desc="// Objects ...">
+
+// <editor-fold desc="// Tests ...">
+
+#[cfg(test)]
+mod tests {
+    #![allow(unused_imports)]
+    use super::{Connection, Cursor, CursorDescription};
+
+    #[test]
+    /// Test that the `Connection` structure behaves as expected
+    fn connects() {
+        todo!()
+    }
+
+    #[test]
+    /// Test that the `Cursor` structure behaves as expected
+    fn creates_cursors() {
+        todo!()
+    }
+
+    #[test]
+    /// Test that the `CursorDescription` structure behaves as expected
+    fn cursors_are_descriptive() {
+        todo!()
+    }
+}
+
+// </editor-fold desc="// Tests ...">

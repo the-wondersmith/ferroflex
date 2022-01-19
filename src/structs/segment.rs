@@ -104,3 +104,19 @@ impl FieldSegment {
 }
 
 // </editor-fold desc="// Field Segment ...">
+
+// <editor-fold desc="// Tests ...">
+
+#[cfg(test)]
+mod tests {
+    #![allow(unused_imports)]
+    use super::FieldSegment;
+
+    #[test]
+    /// Test that the `FieldSegment` structure behaves as expected
+    fn gets_segments() {
+        todo!()
+    }
+}
+
+// </editor-fold desc="// Tests ...">
