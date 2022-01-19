@@ -10,16 +10,15 @@ use std::slice::SliceIndex;
 
 // Third-Party Imports
 
-use prettytable::{Cell, Row as PrintableRow, Table as PrettyTable};
+use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
 use pyo3::exceptions::{PyIndexError, PyKeyError};
 use pyo3::prelude::*;
 use pyo3::types::PySliceIndices;
-use pyo3::PyIterProtocol;
 use serde::{Deserialize, Serialize};
 
 // Crate-Level Imports
 use crate::utils::{bytes_from_file, string_from_path};
-use crate::{iif, AttrIndexOrSlice, ValueOrSlice};
+use crate::{iif, AttrIndexSliceOrItem, ValueOrSlice};
 
 // <editor-fold desc="// Custom Types ...">
 
@@ -76,26 +75,7 @@ impl TagFile {
     // <editor-fold desc="// 'Private' Methods ...">
 
     fn _as_pretty_table(&self) -> PrettyTable {
-        // Create a mutable pretty-printing table
-        let mut table = PrettyTable::new();
-
-        // Append a new row to the table for the names
-        // of the object's relevant attributes
-        table.add_row(PrintableRow::new(vec![
-            Cell::new("File Path"),
-            Cell::new("Column Tags"),
-        ]));
-
-        // Append a new row to the table for each
-        // column tag in the collection
-        table.add_row(PrintableRow::new(vec![
-            Cell::new(self.filepath.as_str()),
-            Cell::new(self.tags.join(", ").as_str()),
-        ]));
-
-        // Yield the assembled pretty-formatted
-        // table as a string
-        table
+        todo!()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -125,11 +105,13 @@ impl TagFile {
         // characters, and finally collecting into a Vec<String>
         Ok(TagFile {
             filepath: filepath.as_ref().to_string(),
-            tags: std::str::from_utf8(bytes_from_file(filepath.as_ref(), None, None)?.as_slice())?
-                .split_ascii_whitespace()
-                .filter(|entry| !entry.is_empty())
-                .map(|entry| entry.to_string())
-                .collect::<TagCollection>(),
+            tags: std::str::from_utf8(
+                bytes_from_file(filepath.as_ref(), None::<u64>, None::<u64>)?.as_slice(),
+            )?
+            .split_ascii_whitespace()
+            .filter(|entry| !entry.is_empty())
+            .map(|entry| entry.to_string())
+            .collect::<TagCollection>(),
         })
     }
 
@@ -180,9 +162,12 @@ impl TagFile {
         Ok(format!("{}", *slf))
     }
 
-    fn __getitem__(slf: PyRefMut<Self>, key: AttrIndexOrSlice) -> PyResult<ValueOrSlice<String>> {
+    fn __getitem__(
+        slf: PyRefMut<Self>,
+        key: AttrIndexSliceOrItem<&'value str>,
+    ) -> PyResult<ValueOrSlice<String>> {
         match key {
-            AttrIndexOrSlice::Index(idx) => {
+            AttrIndexSliceOrItem::Index(idx) => {
                 let idx: isize = iif!(idx > -1, idx, slf.tags.len() as isize + idx);
 
                 if idx < 0 {
@@ -194,12 +179,7 @@ impl TagFile {
                     Some(tag) => Ok(ValueOrSlice::Value(tag.to_string())),
                 }
             }
-            AttrIndexOrSlice::Attr(attr) => match attr.to_lowercase().as_str() {
-                "tags" => Ok(ValueOrSlice::Slice(slf.tags.to_vec())),
-                "path" | "filepath" => Ok(ValueOrSlice::Value(slf.filepath.to_string())),
-                _ => Err(PyKeyError::new_err("")),
-            },
-            AttrIndexOrSlice::Slice(slc) => {
+            AttrIndexSliceOrItem::Slice(slc) => {
                 let indexes: PySliceIndices = slc.indices(3)?;
 
                 let (start, end) = (indexes.start, indexes.stop);
@@ -218,6 +198,13 @@ impl TagFile {
                     Some(tags) => Ok(ValueOrSlice::Slice(tags.to_vec())),
                 }
             }
+            AttrIndexSliceOrItem::Item(attr) | AttrIndexSliceOrItem::Name(attr) => {
+                match attr.to_lowercase().as_str() {
+                    "tags" => Ok(ValueOrSlice::Slice(slf.tags.to_vec())),
+                    "path" | "filepath" => Ok(ValueOrSlice::Value(slf.filepath.to_string())),
+                    _ => Err(PyKeyError::new_err("")),
+                }
+            }
         }
     }
 
@@ -226,32 +213,20 @@ impl TagFile {
     }
 }
 
-#[pyclass]
-pub struct TagIter {
-    pub tags: std::vec::IntoIter<String>,
-}
-
-#[pyproto]
-impl PyIterProtocol for TagIter {
-    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<String> {
-        slf.tags.next()
-    }
-}
-
-#[pyproto]
-impl PyIterProtocol for TagFile {
-    fn __iter__(slf: PyRef<Self>) -> PyResult<Py<TagIter>> {
-        Py::new(
-            slf.py(),
-            TagIter {
-                tags: slf.tags.clone().into_iter(),
-            },
-        )
-    }
-}
-
 // </editor-fold desc="// Tag File ...">
+
+// <editor-fold desc="// Tests ...">
+
+#[cfg(test)]
+mod tests {
+    #![allow(unused_imports)]
+    use super::{TagCollection, TagFile};
+
+    #[test]
+    /// Test that the `TagFile` structure behaves as expected
+    fn gets_tag_files() {
+        todo!()
+    }
+}
+
+// </editor-fold desc="// Tests ...">

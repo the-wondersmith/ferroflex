@@ -1,4 +1,4 @@
-#![feature(associated_type_bounds, in_band_lifetimes)]
+#![feature(associated_type_bounds, in_band_lifetimes, never_type)]
 #![allow(dead_code, unused_doc_comments)]
 #![allow(clippy::needless_option_as_deref)]
 // A Rust interface for DataFlex flat-file databases w/ DB-API v2 compliant Python bindings
@@ -7,12 +7,16 @@
 pub mod dbapi;
 pub mod enums;
 pub mod exceptions;
-pub mod sql;
 pub mod structs;
 pub mod utils;
 
+// Conditional Declarations
+#[cfg(feature = "sql-engine")]
+pub mod sql;
+
 // Third-Party Imports
 use pyo3::prelude::*;
+use pyo3::types::PySlice;
 use serde::{Deserialize, Serialize};
 
 // <editor-fold desc="// Macros ...">
@@ -44,6 +48,10 @@ pub fn ferroflex(py: Python, module: &PyModule) -> PyResult<()> {
 
     // Call the `register` function from the other crate-level modules
     structs::register_components(py, module)?;
+
+    // If the GlueSQL features are enabled, call the `register` function
+    // from the `sql` sub-module
+    #[cfg(feature = "sql-engine")]
     sql::register_components(py, module)?;
 
     // Return an OK
@@ -54,21 +62,21 @@ pub fn ferroflex(py: Python, module: &PyModule) -> PyResult<()> {
 
 // <editor-fold desc="// Custom Types ...">
 
-#[derive(Clone, Debug, FromPyObject)]
-pub enum NameIndexOrItem<'a, T>
+pub trait PyGetterValue<'a, T>
 where
-    T: Eq,
+    T: Clone + PartialEq<T> + FromPyObject<'a>,
 {
-    Name(&'a str),
-    Index(isize),
-    Item(&'a T),
 }
 
 #[derive(Clone, Debug, PartialEq, FromPyObject)]
-pub enum AttrIndexOrSlice<'a> {
-    Attr(&'a str),
+pub enum AttrIndexSliceOrItem<'value, ItemType>
+where
+    dyn PyGetterValue<'value, ItemType>:,
+{
     Index(isize),
-    Slice(&'a pyo3::types::PySlice),
+    Name(&'value str),
+    Item(ItemType),
+    Slice(&'value PySlice),
 }
 
 #[derive(Clone, Debug, PartialEq, FromPyObject, Serialize, Deserialize)]
@@ -87,19 +95,6 @@ where
         match self {
             Self::Value(val) => IntoPy::into_py(val, py),
             Self::Slice(val) => IntoPy::into_py(val, py),
-        }
-    }
-}
-
-impl<T: Eq> Eq for NameIndexOrItem<'_, T> {}
-
-impl<T: Eq> PartialEq<Self> for NameIndexOrItem<T> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (NameIndexOrItem::Name(left), NameIndexOrItem::Name(right)) => left == right,
-            (NameIndexOrItem::Index(left), NameIndexOrItem::Index(right)) => left == right,
-            (NameIndexOrItem::Item(left), NameIndexOrItem::Item(right)) => left == right,
-            _ => false,
         }
     }
 }
