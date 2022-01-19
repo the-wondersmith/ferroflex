@@ -124,7 +124,7 @@ impl Column {
         lines.push(format!("{:-^header_len$}", ""));
 
         for (key, value) in data.iter() {
-            lines.push(format!("{key:left$}| {value:right$}"));
+            lines.push(format!("{key:left$}| {value: ^right$}"));
         }
 
         lines.join("\n")
