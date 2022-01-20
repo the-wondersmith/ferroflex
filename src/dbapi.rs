@@ -3,7 +3,7 @@
 
 // Third-Party Imports
 use pyo3;
-use pyo3::exceptions::{PyAttributeError, PyIndexError, PyValueError};
+use pyo3::exceptions::{PyAttributeError, PyIndexError};
 use pyo3::prelude::*;
 use pyo3::types::PySliceIndices;
 
@@ -151,7 +151,7 @@ impl Connection {
         Connection::default()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> None")]
     /// Close the connection now (rather than `__del__()` is called).
     // The connection will be unusable from this point forward; an exception
     // will be raised if any operation is attempted with the connection. The
@@ -162,7 +162,7 @@ impl Connection {
         todo!()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> None")]
     /// Commits the current transaction.
     /// If this method is not called, the results of any query
     /// executed since the last call to `commit()` will not visible
@@ -171,27 +171,27 @@ impl Connection {
         todo!()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> None")]
     /// Rolls back any changes to the database since the last
     /// call to `commit()`.
     fn rollback(&mut self) -> PyResult<()> {
         todo!()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> Cursor")]
     /// Create a new `Cursor` object using the connection.
     fn cursor(&mut self) -> PyResult<Cursor> {
         todo!()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> None")]
     /// Abort any queries that might be executing on the connection.
     /// The query will then abort and the caller will get an exception.
     fn interrupt(&mut self) -> PyResult<()> {
         todo!()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> Optional[Sequence[CursorDescription]]")]
     /// Prepare and execute a database operation (query or command).
     /// Parameters may be provided as sequence or mapping and will
     /// be bound to variables in the operation.
@@ -199,7 +199,7 @@ impl Connection {
         todo!()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> Optional[Sequence[Sequence[CursorDescription]]]")]
     /// Prepare a database operation (query or command) and then
     /// execute it against all parameter sets supplied by the
     /// `parameters` argument.
@@ -207,7 +207,7 @@ impl Connection {
         todo!()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> None")]
     /// Create a user-defined function that can be used from
     /// within SQL statements under the function name `name`.
     /// The `num_params` argument is the number of parameters
@@ -218,7 +218,7 @@ impl Connection {
         todo!()
     }
 
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> None")]
     /// Create a user-defined aggregate function.
     /// The specified aggregate class must implement a `step`
     /// method, which accepts the number of parameters `num_params`
@@ -242,7 +242,7 @@ impl Connection {
 
 // <editor-fold desc="// Cursor Description ...">
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[pyclass(dict, module = "ferroflex.dbapi")]
 /// A standard DB-API v2 Cursor description.
 pub struct CursorDescription {
@@ -281,7 +281,20 @@ unsafe impl Send for CursorDescription {}
 impl CursorDescription {
     fn _get_item(&self, value: AttrIndexSliceOrItem<isize>) -> PyResult<ValueOrSlice<PyObject>> {
         Python::with_gil(|py| match value {
-            AttrIndexSliceOrItem::Item(_) => Err(PyValueError::new_err("")),
+            AttrIndexSliceOrItem::Item(idx) | AttrIndexSliceOrItem::Index(idx) => {
+                Ok(ValueOrSlice::Value(match idx {
+                    0 | -7 => self.name.to_object(py),
+                    1 | -6 => self.type_code.to_object(py),
+                    2 | -5 => self.display_size.to_object(py),
+                    3 | -4 => self.internal_size.to_object(py),
+                    4 | -3 => self.precision.to_object(py),
+                    5 | -2 => self.scale.to_object(py),
+                    6 | -1 => self.null_ok.to_object(py),
+                    _ => {
+                        return Err(PyIndexError::new_err(""));
+                    }
+                }))
+            }
             AttrIndexSliceOrItem::Name(name) => Ok(ValueOrSlice::Value(match name {
                 "name" => self.name.to_object(py),
                 "type_code" => self.type_code.to_object(py),
@@ -292,18 +305,6 @@ impl CursorDescription {
                 "null_ok" => self.null_ok.to_object(py),
                 _ => {
                     return Err(PyAttributeError::new_err(""));
-                }
-            })),
-            AttrIndexSliceOrItem::Index(idx) => Ok(ValueOrSlice::Value(match idx {
-                0 | -7 => self.name.to_object(py),
-                1 | -6 => self.type_code.to_object(py),
-                2 | -5 => self.display_size.to_object(py),
-                3 | -4 => self.internal_size.to_object(py),
-                4 | -3 => self.precision.to_object(py),
-                5 | -2 => self.scale.to_object(py),
-                6 | -1 => self.null_ok.to_object(py),
-                _ => {
-                    return Err(PyIndexError::new_err(""));
                 }
             })),
             AttrIndexSliceOrItem::Slice(slc) => {

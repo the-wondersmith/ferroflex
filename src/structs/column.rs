@@ -6,7 +6,7 @@ use std::fmt;
 
 // Third-Party Imports
 use byteorder::{ByteOrder, LittleEndian};
-use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyType};
 use serde::{Deserialize, Serialize};
@@ -83,8 +83,46 @@ impl fmt::Display for Column {
 impl Column {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _as_pretty_table(&self) -> PrettyTable {
-        todo!()
+    pub(crate) fn _as_pretty_table(&self) -> String {
+        let mut table = PrettyTable::new();
+
+        vec![
+            ("name", (&self.name).to_string()),
+            ("type", (&self.data_type).to_string()),
+            ("offset", (&self.offset).to_string()),
+            ("length", (&self.length).to_string()),
+            ("scale", (&self.decimal_points).to_string()),
+            (
+                "main_index",
+                match &self.main_index {
+                    None => "N/A".to_string(),
+                    Some(idx) => idx.to_string(),
+                },
+            ),
+            (
+                "related_file",
+                match &self.related_file {
+                    None => "N/A".to_string(),
+                    Some(file) => file.to_string(),
+                },
+            ),
+            (
+                "related_field",
+                match &self.related_field {
+                    None => "N/A".to_string(),
+                    Some(field) => field.to_string(),
+                },
+            ),
+        ]
+        .iter()
+        .for_each(|(key, value)| {
+            table.add_row(PrettyRow::from(vec![
+                PrettyCell::new(key),
+                PrettyCell::new(value),
+            ]));
+        });
+
+        table.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -95,11 +133,10 @@ impl Column {
         let decimal_points: u64 = iif!(data[4] == 1, data[2] & 0x0F, 0u8) as u64;
 
         Ok(Column {
-            name: name.unwrap_or("").to_string(),
-            offset: LittleEndian::read_u16(&data[..2]) as u64,
-            main_index: Some((data[2] >> 4 & 0x0F) as u64),
             decimal_points,
             length: data[3] as u64,
+            name: name.unwrap_or("").to_string(),
+            offset: LittleEndian::read_u16(&data[..2]) as u64,
             data_type: match data[4] {
                 0 => DataType::Ascii,
                 1 => {
@@ -110,12 +147,33 @@ impl Column {
                     }
                 }
                 2 => DataType::Date,
-                5 => DataType::Text,
                 // 3 => DataType::Overlap,
+                5 => DataType::Text,
                 _ => DataType::Binary,
             },
-            related_file: Some(data[5] as u64),
-            related_field: Some(LittleEndian::read_u16(&data[6..]) as u64),
+            main_index: {
+                let idx = data[2] >> 4 & 0x0F;
+
+                if idx > 0 {
+                    Some(idx as u64)
+                } else {
+                    None
+                }
+            },
+            related_file: if data[5] > 0 {
+                Some(data[5] as u64)
+            } else {
+                None
+            },
+            related_field: {
+                let field = LittleEndian::read_u16(&data[6..]);
+
+                if field > 0 {
+                    Some(field as u64)
+                } else {
+                    None
+                }
+            },
         })
     }
 
@@ -210,7 +268,7 @@ impl Column {
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 }
 

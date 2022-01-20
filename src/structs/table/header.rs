@@ -7,7 +7,7 @@ use std::fmt;
 // Third-Party Imports
 use byteorder::{ByteOrder, LittleEndian};
 use caseless::compatibility_caseless_match_str as cl_eq;
-use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -134,25 +134,6 @@ impl fmt::Display for Header {
 impl Header {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _get_header_bytes_from(table_path: &str) -> PyResult<Vec<u8>> {
-        // Try to read the first ~3kb of the table (`bytes_from_file` will return
-        // as many bytes as it can read if the table is smaller than that)
-        let header_bytes = bytes_from_file(table_path, None, Some(3072u64))?;
-
-        // At this point the opened file handle should have been dropped, so all
-        // we have to do is check the "version bytes" and return the header data
-        // accordingly
-        match header_bytes[0x1C..0x1E] {
-            [0x1E, 0x1E] => Ok(header_bytes),
-            [0x00, 0x00] => Ok(header_bytes[0..min(header_bytes.len(), 512)].to_vec()),
-            _ => Err(NotSupportedError::new_err("Unsupported table format!")),
-        }
-    }
-
-    fn _as_pretty_table(&self) -> PrettyTable {
-        todo!()
-    }
-
     fn _ensure_column_sizes(mut self) -> Self {
         let column_count = self.columns.len();
 
@@ -183,6 +164,143 @@ impl Header {
         }
 
         self
+    }
+
+    fn _get_header_bytes_from(table_path: &str) -> PyResult<Vec<u8>> {
+        // Try to read the first ~3kb of the table (`bytes_from_file` will return
+        // as many bytes as it can read if the table is smaller than that)
+        let header_bytes = bytes_from_file(table_path, None, Some(3072u64))?;
+
+        // At this point the opened file handle should have been dropped, so all
+        // we have to do is check the "version bytes" and return the header data
+        // accordingly
+        match header_bytes[0x1C..0x1E] {
+            [0x1E, 0x1E] => Ok(header_bytes),
+            [0x00, 0x00] => Ok(header_bytes[0..min(header_bytes.len(), 512)].to_vec()),
+            _ => Err(NotSupportedError::new_err("Unsupported table format!")),
+        }
+    }
+
+    pub(crate) fn _as_pretty_table(&self) -> String {
+        let (mut outer, mut column_table, mut index_table) =
+            (PrettyTable::new(), PrettyTable::new(), PrettyTable::new());
+
+        // "Plain" / Required Values
+        vec![
+            ("version", (&self.version).to_string()),
+            ("filepath", format!("'{}'", &self.filepath)),
+            ("field_count", (&self.field_count).to_string()),
+            ("record_count", (&self.record_count).to_string()),
+            ("record_length", (&self.record_length).to_string()),
+            ("file_root_name", (&self.file_root_name).to_string()),
+            ("max_record_count", (&self.max_record_count).to_string()),
+            (
+                "reuse_deleted_space",
+                (&self.reuse_deleted_space).to_string(),
+            ),
+            (
+                "fill_bytes_per_block",
+                (&self.fill_bytes_per_block).to_string(),
+            ),
+            (
+                "highest_record_count",
+                (&self.highest_record_count).to_string(),
+            ),
+            (
+                "multiuser_reread_active",
+                (&self.multiuser_reread_active).to_string(),
+            ),
+        ]
+        .iter()
+        .for_each(|(key, value)| {
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new(key),
+                PrettyCell::new(value),
+            ]));
+        });
+
+        // Optional Values
+        if let Some(value) = self._file_locking1 {
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new("file_locking1"),
+                PrettyCell::new(value.to_string().as_str()),
+            ]));
+        };
+        if let Some(value) = self._file_locking2 {
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new("file_locking2"),
+                PrettyCell::new(value.to_string().as_str()),
+            ]));
+        };
+        if let Some(value) = self._compression_type {
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new("compression_type"),
+                PrettyCell::new(value.to_string().as_str()),
+            ]));
+        };
+        if let Some(value) = self._reuse_deleted_records {
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new("reuse_deleted_records"),
+                PrettyCell::new(value.to_string().as_str()),
+            ]));
+        };
+        if let Some(value) = self._first_available_record {
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new("first_available_record"),
+                PrettyCell::new(value.to_string().as_str()),
+            ]));
+        };
+        if let Some(value) = self._header_integrity_enabled {
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new("header_integrity_enabled"),
+                PrettyCell::new(value.to_string().as_str()),
+            ]));
+        };
+
+        // "Variable" Values
+        if !self.indexes.is_empty() {
+            // Option 1 - vertical
+            // self.indexes.iter().for_each(|index| {
+            //     index_table.add_row(PrettyRow::from(vec![PrettyCell::new(
+            //         index._as_pretty_table().as_str(),
+            //     )]));
+            // });
+
+            // Option 2 - horizontal
+            index_table.add_row(PrettyRow::from(
+                self.indexes
+                    .iter()
+                    .map(|index| PrettyCell::new(index._as_pretty_table().as_str())),
+            ));
+
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new("indexes"),
+                PrettyCell::new(index_table.to_string().as_str()),
+            ]));
+        }
+
+        if !self.columns.is_empty() {
+            // // Option 1 - vertical
+            // self.columns.iter().for_each(|column| {
+            //     column_table.add_row(PrettyRow::from(vec![PrettyCell::new(
+            //         column._as_pretty_table().as_str(),
+            //     )]));
+            // });
+
+            // Option 2 - horizontal
+            column_table.add_row(PrettyRow::from(
+                self.columns
+                    .iter()
+                    .map(|column| PrettyCell::new(column._as_pretty_table().as_str())),
+            ));
+
+            outer.add_row(PrettyRow::from(vec![
+                PrettyCell::new("columns"),
+                PrettyCell::new(column_table.to_string().as_str()),
+            ]));
+        }
+
+        outer.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -352,7 +470,7 @@ impl Header {
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 }
 

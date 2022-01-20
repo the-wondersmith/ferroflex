@@ -4,7 +4,7 @@
 use std::fmt;
 
 // Third-Party Imports
-use prettytable::{Cell, Row as PrintableRow, Table as PrettyTable};
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -42,24 +42,22 @@ impl fmt::Display for FieldSegment {
 impl FieldSegment {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _field_values(&self) -> Vec<(String, String)> {
-        vec![
-            ("Column Number".to_string(), self.column.to_string()),
-            ("Field Segment".to_string(), self.segment.to_string()),
-        ]
-    }
-
-    fn _as_pretty_table(&self) -> PrettyTable {
+    pub(crate) fn _as_pretty_table(&self) -> String {
         let mut table = PrettyTable::new();
 
-        self._field_values().iter().for_each(|pair| {
-            table.add_row(PrintableRow::new(vec![
-                Cell::new(&pair.0),
-                Cell::new(&pair.1),
+        vec![
+            ("column_number", (&self.column).to_string()),
+            ("field_segment", (&self.segment).to_string()),
+        ]
+        .iter()
+        .for_each(|(key, value)| {
+            table.add_row(PrettyRow::from(vec![
+                PrettyCell::new(key),
+                PrettyCell::new(value),
             ]));
         });
 
-        table
+        table.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -99,7 +97,7 @@ impl FieldSegment {
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 }
 

@@ -7,7 +7,8 @@ use std::ops::Index as Indexable;
 use std::path::PathBuf;
 
 // Third-Party Imports
-use prettytable::Table as PrettyTable; // {Cell, Row as PrintableRow, };
+#[allow(unused_imports)]
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -61,11 +62,7 @@ impl fmt::Display for DataFlexDB {
 impl DataFlexDB {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _field_values(&self) -> Vec<(String, String)> {
-        todo!()
-    }
-
-    fn _as_pretty_table(&self) -> PrettyTable {
+    pub(crate) fn _as_pretty_table(&self) -> String {
         todo!()
     }
 
@@ -167,7 +164,7 @@ impl DataFlexDB {
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 
     #[getter(tables)]

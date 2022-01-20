@@ -6,7 +6,7 @@ use std::iter::IntoIterator;
 
 // Third-Party Imports
 use caseless::compatibility_caseless_match_str as cl_eq;
-use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3;
 use pyo3::exceptions::{PyFileNotFoundError, PyIndexError, PyKeyError};
 use pyo3::prelude::*;
@@ -74,8 +74,48 @@ impl fmt::Display for FileListEntry {
 impl FileListEntry {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _as_pretty_table(&self) -> PrettyTable {
-        todo!()
+    pub(crate) fn _as_pretty_table(&self) -> String {
+        let mut table = PrettyTable::new();
+
+        vec![
+            ("number", (&self.file_number).to_string()),
+            ("root_name", (&self.root_name).to_string()),
+            (
+                "dataflex_name",
+                match &self.dataflex_name {
+                    None => "N/A".to_string(),
+                    Some(name) => {
+                        if !name.is_empty() {
+                            name.to_string()
+                        } else {
+                            "N/A".to_string()
+                        }
+                    }
+                },
+            ),
+            (
+                "description",
+                match &self.description {
+                    None => "N/A".to_string(),
+                    Some(desc) => {
+                        if !desc.is_empty() {
+                            desc.to_string()
+                        } else {
+                            "N/A".to_string()
+                        }
+                    }
+                },
+            ),
+        ]
+        .iter()
+        .for_each(|(key, value)| {
+            table.add_row(PrettyRow::from(vec![
+                PrettyCell::new(key),
+                PrettyCell::new(value),
+            ]));
+        });
+
+        table.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -151,7 +191,7 @@ impl FileListEntry {
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 }
 
@@ -188,8 +228,16 @@ impl IntoIterator for FileList {
 impl FileList {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _as_pretty_table(&self) -> PrettyTable {
-        todo!()
+    pub(crate) fn _as_pretty_table(&self) -> String {
+        let mut table = PrettyTable::new();
+
+        self.files.iter().for_each(|entry| {
+            table.add_row(PrettyRow::from(vec![PrettyCell::new(
+                entry._as_pretty_table().as_str(),
+            )]));
+        });
+
+        table.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -203,6 +251,10 @@ impl FileList {
                 .enumerate()
                 .map(|(idx, chunk)| FileListEntry::from_bytes(chunk, Some(idx)).unwrap_or_default())
                 .filter(|entry| {
+                    if cl_eq(entry.root_name.as_str(), "filelist.cfg") && entry.file_number == 0 {
+                        return true;
+                    }
+
                     let df_name: bool = match entry.dataflex_name.as_ref() {
                         None => false,
                         Some(val) => !val.is_empty(),
@@ -213,11 +265,9 @@ impl FileList {
                         Some(val) => !val.is_empty(),
                     };
 
-                    let name: bool = (cl_eq(entry.root_name.as_str(), "filelist.cfg")
-                        && entry.file_number == 0)
-                        || (!cl_eq(entry.root_name.as_str(), "filelist.cfg")
-                            && !entry.root_name.is_empty()
-                            && entry.file_number >= 1);
+                    let name: bool = !cl_eq(entry.root_name.as_str(), "filelist.cfg")
+                        && !entry.root_name.is_empty()
+                        && entry.file_number >= 1;
 
                     name && (df_name || desc)
                 })
@@ -391,7 +441,7 @@ impl FileList {
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 }
 
