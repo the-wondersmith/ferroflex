@@ -4,6 +4,7 @@
 use std::fmt;
 
 // Third-Party Imports
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -41,12 +42,22 @@ impl fmt::Display for FieldSegment {
 impl FieldSegment {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _as_pretty_table(&self) -> String {
+    pub(crate) fn _as_pretty_table(&self) -> String {
+        let mut table = PrettyTable::new();
+
         vec![
-            format!("{:16}| {: ^5}", "column_number", self.column),
-            format!("{:16}| {: ^5}", "field_segment", self.segment),
+            ("column_number", (&self.column).to_string()),
+            ("field_segment", (&self.segment).to_string()),
         ]
-        .join("\n")
+        .iter()
+        .for_each(|(key, value)| {
+            table.add_row(PrettyRow::from(vec![
+                PrettyCell::new(key),
+                PrettyCell::new(value),
+            ]));
+        });
+
+        table.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">

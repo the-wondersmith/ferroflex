@@ -1,6 +1,7 @@
 // A structured representation of a single row of data in DataFlex table file
 
 // Standard Library Imports
+use itertools::Itertools;
 use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::ops::Deref;
 
@@ -23,11 +24,7 @@ impl Display for Row {
         write!(
             f,
             "Row<{}>",
-            self.0
-                .iter()
-                .map(|value| value.to_string())
-                .collect::<Vec<String>>()
-                .join(", ")
+            self.0.iter().map(|value| value.to_string()).join(", ")
         )
     }
 }

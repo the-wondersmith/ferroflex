@@ -1,12 +1,12 @@
 // A structured representation of a column's definition in the header of a DataFlex table file
 
 // Standard Library Imports
-use std::cmp::{max, min};
+use std::cmp::min;
 use std::fmt;
 
 // Third-Party Imports
 use byteorder::{ByteOrder, LittleEndian};
-// use prettytable::{Cell, Row as PrintableRow, Table as PrettyTable};
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyType};
 use serde::{Deserialize, Serialize};
@@ -83,10 +83,12 @@ impl fmt::Display for Column {
 impl Column {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    #[allow(unused_variables)]
-    fn _as_pretty_table(&self) -> String {
-        let data: Vec<(&str, String)> = vec![
-            ("data_type", (&self.data_type).to_string()),
+    pub(crate) fn _as_pretty_table(&self) -> String {
+        let mut table = PrettyTable::new();
+
+        vec![
+            ("name", (&self.name).to_string()),
+            ("type", (&self.data_type).to_string()),
             ("offset", (&self.offset).to_string()),
             ("length", (&self.length).to_string()),
             ("scale", (&self.decimal_points).to_string()),
@@ -111,23 +113,16 @@ impl Column {
                     Some(field) => field.to_string(),
                 },
             ),
-        ];
+        ]
+        .iter()
+        .for_each(|(key, value)| {
+            table.add_row(PrettyRow::from(vec![
+                PrettyCell::new(key),
+                PrettyCell::new(value),
+            ]));
+        });
 
-        let mut lines: Vec<String> = Vec::new();
-
-        let (left, right) = (max(16usize, (&self.name).len()) as usize, 10usize);
-
-        let header: String = format!("{:left$}| {:right$}", &self.name, " ");
-        let header_len: usize = header.len();
-
-        lines.push(header);
-        lines.push(format!("{:-^header_len$}", ""));
-
-        for (key, value) in data.iter() {
-            lines.push(format!("{key:left$}| {value: ^right$}"));
-        }
-
-        lines.join("\n")
+        table.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">

@@ -5,7 +5,7 @@ use std::fmt;
 use std::iter::IntoIterator;
 
 // Third-Party Imports
-use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -78,8 +78,36 @@ impl IntoIterator for Index {
 impl Index {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _as_pretty_table(&self) -> PrettyTable {
-        todo!()
+    pub(crate) fn _as_pretty_table(&self) -> String {
+        // Create the "outer" table element
+        let (mut outer, mut left, mut right) =
+            (PrettyTable::new(), PrettyTable::new(), PrettyTable::new());
+
+        vec![
+            ("type", (&self.r#type).to_string()),
+            ("fields", (&self.field_count).to_string()),
+            ("collation", (&self.collation).to_string()),
+        ]
+        .iter()
+        .for_each(|(key, value)| {
+            left.add_row(PrettyRow::from(vec![
+                PrettyCell::new(key),
+                PrettyCell::new(value),
+            ]));
+        });
+
+        right.add_row(PrettyRow::from(
+            self.segments
+                .iter()
+                .map(|segment| PrettyCell::new(segment._as_pretty_table().as_str())),
+        ));
+
+        outer.add_row(PrettyRow::from(vec![
+            PrettyCell::new(left.to_string().as_str()),
+            PrettyCell::new(right.to_string().as_str()),
+        ]));
+
+        outer.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -157,7 +185,7 @@ impl Index {
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 }
 

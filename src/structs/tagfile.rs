@@ -9,8 +9,7 @@ use std::path::Path;
 use std::slice::SliceIndex;
 
 // Third-Party Imports
-
-use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
+use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3::exceptions::{PyIndexError, PyKeyError};
 use pyo3::prelude::*;
 use pyo3::types::PySliceIndices;
@@ -74,8 +73,20 @@ impl IntoIterator for TagFile {
 impl TagFile {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _as_pretty_table(&self) -> PrettyTable {
-        todo!()
+    fn _as_pretty_table(&self) -> String {
+        let mut table = PrettyTable::new();
+
+        table.add_row(PrettyRow::from(vec![
+            PrettyCell::new("filepath"),
+            PrettyCell::new(&self.filepath),
+        ]));
+
+        table.add_row(PrettyRow::from(vec![
+            PrettyCell::new("tags"),
+            PrettyCell::new(format!(" {} ", self.tags.join(" ¦ ")).as_str()),
+        ]));
+
+        table.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -209,7 +220,7 @@ impl TagFile {
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 }
 
