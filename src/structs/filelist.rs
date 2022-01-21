@@ -8,7 +8,7 @@ use std::iter::IntoIterator;
 use caseless::compatibility_caseless_match_str as cl_eq;
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3;
-use pyo3::exceptions::{PyFileNotFoundError, PyIndexError, PyKeyError};
+use pyo3::exceptions::{PyFileNotFoundError, PyIndexError, PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PySliceIndices;
 use serde::{Deserialize, Serialize};
@@ -197,6 +197,28 @@ impl FileListEntry {
 
 // </editor-fold desc="// FileListEntry ...">
 
+// <editor-fold desc="// EntryIterator ...">
+
+#[pyclass(dict, module = "ferroflex.structs")]
+/// An iterator over the entries in a DataFlex `filelist.cfg` file
+struct EntryIterator {
+    entries: Box<dyn Iterator<Item = FileListEntry>>,
+}
+
+unsafe impl Send for EntryIterator {}
+
+#[pyproto]
+impl pyo3::PyIterProtocol for EntryIterator {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<FileListEntry> {
+        slf.entries.next()
+    }
+}
+
+// </editor-fold desc="// EntryIterator ...">
+
 // <editor-fold desc="// FileList ...">
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -366,10 +388,7 @@ impl FileList {
         key: AttrIndexSliceOrItem<FileListEntry>,
     ) -> PyResult<ValueOrSlice<FileListEntry>> {
         match key {
-            #[allow(unused_variables)]
-            AttrIndexSliceOrItem::Item(item) => {
-                todo!()
-            }
+            AttrIndexSliceOrItem::Item(_) => Err(PyValueError::new_err("")),
             AttrIndexSliceOrItem::Index(idx) => {
                 let idx: isize = iif!(idx > -1, idx, slf.files.len() as isize + idx);
 
@@ -415,29 +434,51 @@ impl FileList {
         }
     }
 
-    fn __setitem__(
-        _slf: PyRefMut<Self>,
-        _index: isize,
-        _record: PyRef<FileListEntry>,
-    ) -> PyResult<()> {
-        todo!()
+    fn __setitem__(mut slf: PyRefMut<Self>, index: isize, record: FileListEntry) -> PyResult<()> {
+        let index: isize = iif!(index > -1, index, slf.files.len() as isize + index);
+
+        if index < 0 || index >= slf.files.len() as isize {
+            return Err(PyIndexError::new_err(""));
+        }
+
+        match slf.files.get_mut(index as usize) {
+            Some(entry) => {
+                std::mem::drop(std::mem::replace(entry, record));
+            }
+            None => {
+                return Err(PyValueError::new_err(""));
+            }
+        }
+
+        Ok(())
     }
 
-    fn __delitem__(_slf: PyRefMut<Self>, _index: isize) -> PyResult<()> {
-        todo!()
+    fn __delitem__(mut slf: PyRefMut<Self>, index: isize) -> PyResult<()> {
+        let index: isize = iif!(index > -1, index, slf.files.len() as isize + index);
+
+        if index < 0 || index >= slf.files.len() as isize {
+            return Err(PyIndexError::new_err(""));
+        }
+
+        slf.files.remove(index as usize);
+
+        Ok(())
     }
 
-    #[allow(unused_variables)]
-    fn __iter__(slf: PyRef<Self>) -> PyResult<()> {
-        todo!()
+    fn __iter__(slf: PyRef<Self>) -> EntryIterator {
+        EntryIterator {
+            entries: Box::new(slf.files.clone().into_iter()),
+        }
     }
 
     fn __contains__(slf: PyRefMut<Self>, table: AttrIndexSliceOrItem<FileListEntry>) -> bool {
         slf.contains(table)
     }
 
-    fn __reversed__(_slf: PyRef<Self>) -> PyResult<Vec<FileListEntry>> {
-        todo!()
+    fn __reversed__(slf: PyRef<Self>) -> EntryIterator {
+        EntryIterator {
+            entries: Box::new(slf.files.clone().into_iter().rev()),
+        }
     }
 
     fn pretty(slf: PyRefMut<Self>) -> String {
