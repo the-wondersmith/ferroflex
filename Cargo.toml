@@ -47,7 +47,20 @@ serde = { version = "^1.0", default-features = false, features = ["rc", "std", "
 gluesql = { version = "^0.10", default-features = false, features = ["index", "metadata", "alter-table",  "transaction"], optional = true }
 
 
+[dev-dependencies]
+
+cargo-x = "^0.3"
+
+
 [features]
 sql-engine = ["gluesql"]
 extension-module = ["pyo3/extension-module"]
 default = ["extension-module"]
+
+
+[package.metadata.x]
+
+build = "poetry run maturin build"
+build-dev = "poetry run maturin develop"
+clean = "bash -c 'rm ferroflex/*.so && cargo clean'"
+pytest = "poetry run pytest tests/"
