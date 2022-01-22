@@ -43,21 +43,17 @@ impl FieldSegment {
     // <editor-fold desc="// 'Private' Methods ...">
 
     pub(crate) fn _as_pretty_table(&self) -> String {
-        let mut table = PrettyTable::new();
-
-        vec![
-            ("column_number", (&self.column).to_string()),
-            ("field_segment", (&self.segment).to_string()),
-        ]
-        .iter()
-        .for_each(|(key, value)| {
-            table.add_row(PrettyRow::from(vec![
-                PrettyCell::new(key),
-                PrettyCell::new(value),
-            ]));
-        });
-
-        table.to_string()
+        PrettyTable::from_iter([
+            PrettyRow::new(vec![
+                PrettyCell::new("column_number"),
+                PrettyCell::new(&self.column.to_string().as_str()),
+            ]),
+            PrettyRow::new(vec![
+                PrettyCell::new("field_segment"),
+                PrettyCell::new(&self.segment.to_string().as_str()),
+            ]),
+        ])
+        .to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -88,15 +84,15 @@ impl FieldSegment {
         }
     }
 
-    fn __str__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __repr__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn pretty(slf: PyRefMut<Self>) -> String {
+    fn pretty(slf: PyRef<Self>) -> String {
         slf._as_pretty_table()
     }
 }

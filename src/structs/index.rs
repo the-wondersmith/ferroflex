@@ -16,7 +16,7 @@ use crate::structs::segment::FieldSegment;
 
 // <editor-fold desc="// Index ...">
 
-#[derive(Clone, Debug, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
 #[pyclass(dict, module = "ferroflex.structs")]
 /// A structured representation of an index's
 /// definition in the header of a DataFlex table file
@@ -37,17 +37,6 @@ pub struct Index {
 }
 
 unsafe impl Send for Index {}
-
-impl Default for Index {
-    fn default() -> Self {
-        Index {
-            r#type: IndexType::Unknown,
-            field_count: 0u8,
-            segments: vec![],
-            collation: IndexCollation::Unknown,
-        }
-    }
-}
 
 impl fmt::Display for Index {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -176,15 +165,15 @@ impl Index {
         })
     }
 
-    fn __str__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __repr__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn pretty(slf: PyRefMut<Self>) -> String {
+    fn pretty(slf: PyRef<Self>) -> String {
         slf._as_pretty_table()
     }
 }

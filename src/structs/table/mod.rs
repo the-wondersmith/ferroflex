@@ -204,7 +204,7 @@ impl DataFlexTable {
     // </editor-fold desc="// Public Methods ...">
 }
 
-#[allow(unused_variables)]
+#[allow(unused_mut, unused_variables)]
 #[pymethods]
 impl DataFlexTable {
     // <editor-fold desc="// Magic Methods ...">
@@ -274,14 +274,14 @@ impl DataFlexTable {
     }
 
     fn __setitem__(
-        slf: PyRefMut<Self>,
+        mut slf: PyRefMut<Self>,
         key: AttrIndexSliceOrItem<Row>,
         value: &PyAny,
     ) -> PyResult<()> {
         todo!()
     }
 
-    fn __delitem__(slf: PyRefMut<Self>, index: AttrIndexSliceOrItem<Row>) -> PyResult<()> {
+    fn __delitem__(mut slf: PyRefMut<Self>, index: AttrIndexSliceOrItem<Row>) -> PyResult<()> {
         todo!()
     }
 
@@ -289,11 +289,11 @@ impl DataFlexTable {
         todo!()
     }
 
-    fn __contains__(slf: PyRef<Self>, record: AttrIndexSliceOrItem<Row>) -> bool {
+    fn __reversed__(slf: PyRef<Self>) -> () {
         todo!()
     }
 
-    fn __reversed__(slf: PyRef<Self>) -> () {
+    fn __contains__(slf: PyRef<Self>, record: AttrIndexSliceOrItem<Row>) -> bool {
         todo!()
     }
 
@@ -309,27 +309,27 @@ impl DataFlexTable {
         slf._as_pretty_table().to_string()
     }
 
-    fn pop(slf: PyRefMut<Self>, index: i64) -> PyResult<()> {
-        todo!()
-    }
-
     fn index(slf: PyRef<Self>, record: &PyAny) -> PyResult<i32> {
         todo!()
     }
 
-    fn insert(slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
+    fn pop(mut slf: PyRefMut<Self>, index: i64) -> PyResult<()> {
         todo!()
     }
 
-    fn append(slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
+    fn insert(mut slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
         todo!()
     }
 
-    fn extend(slf: PyRefMut<Self>, records: &PyTuple) -> PyResult<()> {
+    fn append(mut slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
         todo!()
     }
 
-    fn remove(slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
+    fn extend(mut slf: PyRefMut<Self>, records: &PyTuple) -> PyResult<()> {
+        todo!()
+    }
+
+    fn remove(mut slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
         todo!()
     }
 

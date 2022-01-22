@@ -74,19 +74,17 @@ impl TagFile {
     // <editor-fold desc="// 'Private' Methods ...">
 
     fn _as_pretty_table(&self) -> String {
-        let mut table = PrettyTable::new();
-
-        table.add_row(PrettyRow::from(vec![
-            PrettyCell::new("filepath"),
-            PrettyCell::new(&self.filepath),
-        ]));
-
-        table.add_row(PrettyRow::from(vec![
-            PrettyCell::new("tags"),
-            PrettyCell::new(format!(" {} ", self.tags.join(" ¦ ")).as_str()),
-        ]));
-
-        table.to_string()
+        PrettyTable::from_iter([
+            PrettyRow::from(vec![
+                PrettyCell::new("filepath"),
+                PrettyCell::new(&self.filepath),
+            ]),
+            PrettyRow::from(vec![
+                PrettyCell::new("tags"),
+                PrettyCell::new(format!(" {} ", self.tags.join(" ¦ ")).as_str()),
+            ]),
+        ])
+        .to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -165,16 +163,16 @@ impl TagFile {
         Ok(tag_file)
     }
 
-    fn __str__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __repr__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
     fn __getitem__(
-        slf: PyRefMut<Self>,
+        slf: PyRef<Self>,
         key: AttrIndexSliceOrItem<&'value str>,
     ) -> PyResult<ValueOrSlice<String>> {
         match key {
@@ -219,7 +217,7 @@ impl TagFile {
         }
     }
 
-    fn pretty(slf: PyRefMut<Self>) -> String {
+    fn pretty(slf: PyRef<Self>) -> String {
         slf._as_pretty_table()
     }
 }
