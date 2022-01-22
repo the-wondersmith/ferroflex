@@ -182,15 +182,15 @@ impl FileListEntry {
         })
     }
 
-    fn __str__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __repr__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn pretty(slf: PyRefMut<Self>) -> String {
+    fn pretty(slf: PyRef<Self>) -> String {
         slf._as_pretty_table()
     }
 }
@@ -371,20 +371,20 @@ impl FileList {
         Ok(file_list)
     }
 
-    fn __str__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __repr__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __len__(slf: PyRefMut<Self>) -> usize {
+    fn __len__(slf: PyRef<Self>) -> usize {
         slf.len()
     }
 
     fn __getitem__(
-        slf: PyRefMut<Self>,
+        slf: PyRef<Self>,
         key: AttrIndexSliceOrItem<FileListEntry>,
     ) -> PyResult<ValueOrSlice<FileListEntry>> {
         match key {
@@ -471,7 +471,7 @@ impl FileList {
         }
     }
 
-    fn __contains__(slf: PyRefMut<Self>, table: AttrIndexSliceOrItem<FileListEntry>) -> bool {
+    fn __contains__(slf: PyRef<Self>, table: AttrIndexSliceOrItem<FileListEntry>) -> bool {
         slf.contains(table)
     }
 
@@ -481,7 +481,7 @@ impl FileList {
         }
     }
 
-    fn pretty(slf: PyRefMut<Self>) -> String {
+    fn pretty(slf: PyRef<Self>) -> String {
         slf._as_pretty_table()
     }
 }
