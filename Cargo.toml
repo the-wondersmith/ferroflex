@@ -62,5 +62,5 @@ default = ["extension-module"]
 
 build = "poetry run maturin build"
 build-dev = "poetry run maturin develop"
-clean = "bash -c 'rm ferroflex/*.so && cargo clean'"
+clean = "bash -c 'rm -f ferroflex/*.so && cargo clean'"
 pytest = "poetry run pytest tests/"
