@@ -60,15 +60,23 @@ impl FieldSegment {
 
     // <editor-fold desc="// Public Methods ...">
 
-    pub fn from_bytes(data: &[u8]) -> PyResult<Vec<FieldSegment>> {
-        Ok(data
-            .iter()
-            .enumerate()
-            .map(|(i, col)| FieldSegment {
-                column: *col,
-                segment: i as u8,
-            })
-            .collect::<Vec<FieldSegment>>())
+    pub fn from_bytes(data: &[u8]) -> PyResult<Vec<Py<FieldSegment>>> {
+        Python::with_gil(|py| {
+            Ok(data
+                .iter()
+                .enumerate()
+                .map(|(i, col)| {
+                    Py::new(
+                        py,
+                        FieldSegment {
+                            column: *col,
+                            segment: i as u8,
+                        },
+                    )
+                    .unwrap()
+                })
+                .collect::<Vec<Py<FieldSegment>>>())
+        })
     }
 
     // </editor-fold desc="// Public Methods ...">

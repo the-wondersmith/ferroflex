@@ -129,68 +129,77 @@ impl Column {
 
     // <editor-fold desc="// Public Methods ...">
 
-    pub fn from_bytes(data: &[u8], name: Option<&str>) -> PyResult<Column> {
+    pub fn from_bytes(data: &[u8], name: Option<&str>) -> PyResult<Py<Column>> {
         let decimal_points: u64 = iif!(data[4] == 1, data[2] & 0x0F, 0u8) as u64;
 
-        Ok(Column {
-            decimal_points,
-            length: data[3] as u64,
-            name: name.unwrap_or("").to_string(),
-            offset: LittleEndian::read_u16(&data[..2]) as u64,
-            data_type: match data[4] {
-                0 => DataType::Ascii,
-                1 => {
-                    if decimal_points > 0 {
-                        DataType::Float
+        Python::with_gil(|py| {
+            Py::new(
+                py,
+                Column {
+                    decimal_points,
+                    length: data[3] as u64,
+                    name: name.unwrap_or("").to_string(),
+                    offset: LittleEndian::read_u16(&data[..2]) as u64,
+                    data_type: match data[4] {
+                        0 => DataType::Ascii,
+                        1 => {
+                            if decimal_points > 0 {
+                                DataType::Float
+                            } else {
+                                DataType::Int
+                            }
+                        }
+                        2 => DataType::Date,
+                        // 3 => DataType::Overlap,
+                        5 => DataType::Text,
+                        _ => DataType::Binary,
+                    },
+                    main_index: {
+                        let idx = data[2] >> 4 & 0x0F;
+
+                        if idx > 0 {
+                            Some(idx as u64)
+                        } else {
+                            None
+                        }
+                    },
+                    related_file: if data[5] > 0 {
+                        Some(data[5] as u64)
                     } else {
-                        DataType::Int
-                    }
-                }
-                2 => DataType::Date,
-                // 3 => DataType::Overlap,
-                5 => DataType::Text,
-                _ => DataType::Binary,
-            },
-            main_index: {
-                let idx = data[2] >> 4 & 0x0F;
+                        None
+                    },
+                    related_field: {
+                        let field = LittleEndian::read_u16(&data[6..]);
 
-                if idx > 0 {
-                    Some(idx as u64)
-                } else {
-                    None
-                }
-            },
-            related_file: if data[5] > 0 {
-                Some(data[5] as u64)
-            } else {
-                None
-            },
-            related_field: {
-                let field = LittleEndian::read_u16(&data[6..]);
-
-                if field > 0 {
-                    Some(field as u64)
-                } else {
-                    None
-                }
-            },
+                        if field > 0 {
+                            Some(field as u64)
+                        } else {
+                            None
+                        }
+                    },
+                },
+            )
         })
     }
 
-    pub fn table_from_bytes(data: &[u8], names: Option<Vec<String>>) -> PyResult<Vec<Column>> {
+    pub fn table_from_bytes(data: &[u8], names: Option<Vec<String>>) -> PyResult<Vec<Py<Column>>> {
         let chunks = data.chunks_exact(8);
 
         if let Some(n) = names {
             return Ok(chunks
                 .enumerate()
                 .filter(|pair| pair.0 < n.len())
-                .map(|pair| Column::from_bytes(pair.1, Some(&n[min(pair.0, n.len() - 1)])).unwrap())
-                .collect::<Vec<Column>>());
+                .map(|pair| Column::from_bytes(pair.1, Some(&n[min(pair.0, n.len() - 1)])))
+                .filter(PyResult::is_ok)
+                .map(PyResult::unwrap)
+                .collect::<Vec<Py<Column>>>());
         }
 
         Ok(chunks
-            .map(|val| Column::from_bytes(val, None).unwrap())
-            .collect::<Vec<Column>>())
+            .map(|val| Column::from_bytes(val, None))
+            .filter(PyResult::is_ok)
+            .map(PyResult::unwrap)
+            .collect::<Vec<Py<Column>>>())
     }
 
     // </editor-fold desc="// Public Methods ...">
@@ -199,18 +208,11 @@ impl Column {
 #[pymethods]
 impl Column {
     #[new]
-    #[args(
-        name = "None",
-        offset = "None",
-        length = "None",
-        data_type = "None",
-        py_kwargs = "**"
-    )]
     fn __new__(
-        name: Option<String>,
-        offset: Option<u64>,
-        length: Option<u64>,
-        data_type: Option<&PyType>,
+        name: String,
+        offset: u64,
+        length: u64,
+        data_type: &PyType,
         py_kwargs: Option<&PyDict>,
     ) -> PyResult<Self> {
         let (main_index, related_file, related_field, decimal_points) = match py_kwargs {
@@ -245,13 +247,10 @@ impl Column {
         };
 
         Ok(Self {
-            name: name.unwrap_or_default(),
-            offset: offset.unwrap_or_default(),
-            length: length.unwrap_or_default(),
-            data_type: match data_type {
-                None => DataType::Unknown,
-                Some(val) => DataType::extract(val)?,
-            },
+            name,
+            offset,
+            length,
+            data_type: DataType::extract(data_type)?,
             main_index,
             related_file,
             related_field,

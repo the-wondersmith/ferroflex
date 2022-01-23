@@ -14,8 +14,13 @@ use crate::enums::Value;
 
 // <editor-fold desc="// Row ...">
 
-#[derive(Clone, Debug, Default, PartialOrd, PartialEq, Serialize, Deserialize, FromPyObject)]
-pub struct Row(#[pyo3(transparent)] pub Vec<Value>);
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[pyclass(dict, module = "ferroflex.structs")]
+/// A structured representation of the data
+/// in a single row of a DataFlex table file
+pub struct Row {
+    pub data: Vec<Value>,
+}
 
 unsafe impl Send for Row {}
 
@@ -24,7 +29,7 @@ impl Display for Row {
         write!(
             f,
             "Row<{}>",
-            self.0.iter().map(|value| value.to_string()).join(", ")
+            self.data.iter().map(|value| value.to_string()).join(", ")
         )
     }
 }
@@ -33,17 +38,7 @@ impl Deref for Row {
     type Target = Vec<Value>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl ToPyObject for Row {
-    fn to_object(&self, py: Python) -> PyObject {
-        self.0
-            .iter()
-            .map(|value| value.clone().into_py(py))
-            .collect::<Vec<PyObject>>()
-            .into_py(py)
+        &self.data
     }
 }
 

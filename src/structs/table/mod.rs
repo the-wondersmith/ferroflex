@@ -16,7 +16,7 @@ use std::ops::Index as Indexable;
 use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
 use pyo3::exceptions::{PyIndexError, PyNotImplementedError};
 use pyo3::prelude::*;
-use pyo3::types::{PySliceIndices, PyTuple};
+use pyo3::types::PySliceIndices;
 use serde::{Deserialize, Serialize};
 
 // Crate-Level Imports
@@ -29,13 +29,13 @@ use crate::{iif, AttrIndexSliceOrItem, ValueOrSlice};
 
 // <editor-fold desc="// DataFlexTable ...">
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[pyclass(dict, module = "ferroflex.structs")]
 /// A structured representation of a DataFlex table file
 pub struct DataFlexTable {
     #[pyo3(get)]
     /// The table's header data
-    pub header: Header,
+    pub header: Py<Header>,
 }
 
 unsafe impl Send for DataFlexTable {}
@@ -50,7 +50,7 @@ impl<T: Into<i64>> Indexable<T> for DataFlexTable {
 }
 
 impl IntoIterator for DataFlexTable {
-    type Item = Row;
+    type Item = Py<Row>;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -60,11 +60,14 @@ impl IntoIterator for DataFlexTable {
 
 impl fmt::Display for DataFlexTable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "DataFlexTable<name: {} | record_count: {} | df_version: {}>",
-            self.header.file_root_name, self.header.record_count, self.header.version,
-        )
+        Python::with_gil(|py| {
+            let header = Py::borrow(&self.header, py);
+            write!(
+                f,
+                "DataFlexTable<name: {} | record_count: {} | df_version: {}>",
+                header.file_root_name, header.record_count, header.version,
+            )
+        })
     }
 }
 
@@ -78,68 +81,84 @@ impl DataFlexTable {
     fn nth_record_bytes<I: Into<i64>>(&self, record_number: I) -> PyResult<Vec<u8>> {
         let record_number: i64 = record_number.into();
 
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+
+        let header = Py::borrow(&self.header, py);
+
         let record_number: i64 = if record_number < 0i64 {
-            self.header.record_count as i64 + record_number
+            header.record_count as i64 + record_number
         } else {
             record_number
         };
 
-        if record_number < 0i64 || record_number > self.header.record_count as i64 {
+        if record_number < 0i64 || record_number > header.record_count as i64 {
             return Err(PyIndexError::new_err(""));
         }
 
         // TODO: Update this to behave properly for tables that have fill bytes
-        if self.header.fill_bytes_per_block > 0 {
+        if header.fill_bytes_per_block > 0 {
             panic!()
         }
 
         // Calculate the starting offset of the requested
         // record depending on the table version
-        let start: u64 = match self.header.version {
-            Version::V23B => 512i64 + (self.header.record_length as i64 * record_number),
-            Version::V30 => 3072i64 + (self.header.record_length as i64 * record_number),
+        let start: u64 = match header.version {
+            Version::V23B => 512i64 + (header.record_length as i64 * record_number),
+            Version::V30 => 3072i64 + (header.record_length as i64 * record_number),
             Version::Unknown => {
                 return Err(NotSupportedError::new_err("Unsupported table format!"));
             }
         } as u64;
 
-        let end: u64 = start + self.header.record_length as u64;
+        let end: u64 = start + header.record_length as u64;
 
-        bytes_from_file(&self.header.filepath, Some(start), Some(end))
+        bytes_from_file(&header.filepath, Some(start), Some(end))
     }
 
     fn record_from_bytes<B: AsRef<[u8]>>(&self, record_data: B) -> PyResult<Row> {
         let record_data: &[u8] = record_data.as_ref();
 
-        Ok(Row(self
-            .header
-            .columns
-            .iter()
-            .map(|col| {
-                let start = (col.offset - 1) as usize;
-                let end = (col.length as usize) + start;
-                let data = &record_data[start..end];
+        Python::with_gil(|py| {
+            Ok(Row {
+                data: Py::borrow(&self.header, py)
+                    .columns
+                    .iter()
+                    .map(|col| {
+                        let col = Py::borrow(col, py);
 
-                match col.data_type {
-                    DataType::Ascii => Value::Str(string_from_bytes(data, Some(false)).unwrap()),
-                    DataType::Int => Value::I64(int_from_bcd_bytes(data, Some(true)).unwrap()),
-                    DataType::Float => {
-                        Value::F64(float_from_bcd_bytes(data, Some(col.decimal_points)).unwrap())
-                    }
-                    DataType::Date => match date_from_bytes(data) {
-                        Ok(Some(val)) => Value::Date(val),
-                        _ => Value::Null,
-                    },
-                    // The first two bytes of TEXT and BINARY fields are actually
-                    // a u16 integer denoting how much of the field's allotted
-                    // length is actually "populated"
-                    DataType::Text => Value::Str(string_from_bytes(data, Some(true)).unwrap()),
-                    // `gluesql` doesn't currently support Binary / BLOB types
-                    _ => Value::Null,
-                    // data[2..][..LittleEndian::read_u16(&data[..2]) as usize].to_vec()
-                }
+                        let start = (col.offset - 1) as usize;
+                        let end = (col.length as usize) + start;
+                        let data = &record_data[start..end];
+
+                        match col.data_type {
+                            DataType::Ascii => {
+                                Value::Str(string_from_bytes(data, Some(false)).unwrap())
+                            }
+                            DataType::Int => {
+                                Value::I64(int_from_bcd_bytes(data, Some(true)).unwrap())
+                            }
+                            DataType::Float => Value::F64(
+                                float_from_bcd_bytes(data, Some(col.decimal_points)).unwrap(),
+                            ),
+                            DataType::Date => match date_from_bytes(data) {
+                                Ok(Some(val)) => Value::Date(val),
+                                _ => Value::Null,
+                            },
+                            // The first two bytes of TEXT and BINARY fields are actually
+                            // a u16 integer denoting how much of the field's allotted
+                            // length is actually "populated"
+                            DataType::Text => {
+                                Value::Str(string_from_bytes(data, Some(true)).unwrap())
+                            }
+                            // `gluesql` doesn't currently support Binary / BLOB types
+                            _ => Value::Null,
+                            // data[2..][..LittleEndian::read_u16(&data[..2]) as usize].to_vec()
+                        }
+                    })
+                    .collect::<Vec<Value>>(),
             })
-            .collect::<Vec<Value>>()))
+        })
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -147,7 +166,7 @@ impl DataFlexTable {
     // <editor-fold desc="// Public Methods ...">
 
     pub fn len(&self) -> u64 {
-        self.header.record_count
+        Python::with_gil(|py| Py::borrow(&self.header, py).record_count)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -158,23 +177,31 @@ impl DataFlexTable {
         todo!()
     }
 
-    pub fn schema(&self) -> PyResult<Option<!>> {
+    pub fn schema(&self) -> PyResult<Option<()>> {
         todo!()
     }
 
-    pub fn from_path<P: AsRef<str>>(table_path: P) -> PyResult<DataFlexTable> {
-        Ok(DataFlexTable {
-            header: Header::from_path(table_path.as_ref())?,
+    pub fn from_path<P: AsRef<str>>(table_path: P) -> PyResult<Py<DataFlexTable>> {
+        Python::with_gil(|py| {
+            Py::new(
+                py,
+                DataFlexTable {
+                    header: Header::from_path(table_path.as_ref())?,
+                },
+            )
         })
     }
 
-    pub fn nth_record<I: Into<i64>>(&self, record_number: I) -> PyResult<Row> {
+    pub fn nth_record<I: Into<i64>>(&self, record_number: I) -> PyResult<Py<Row>> {
         let record_number: i64 = record_number.into();
+
+        let gil = Python::acquire_gil();
+        let py = gil.python();
 
         let record_number: i64 = if record_number > -1i64 {
             record_number
         } else {
-            self.header.record_count as i64 + record_number
+            Py::borrow(&self.header, py).record_count as i64 + record_number
         };
 
         if record_number < 0i64 {
@@ -188,16 +215,16 @@ impl DataFlexTable {
 
         let data = self.nth_record_bytes(record_number)?;
 
-        self.record_from_bytes(&data)
+        Py::new(py, self.record_from_bytes(&data)?)
     }
 
     #[allow(unused_variables)]
-    pub fn append_record(&self, record: Row) -> PyResult<()> {
+    pub fn append_record(&self, record: Py<Row>) -> PyResult<()> {
         todo!()
     }
 
     #[allow(unused_variables)]
-    pub fn update_record<I: Into<i64>>(&self, record_number: I, record: Row) -> PyResult<()> {
+    pub fn update_record<I: Into<i64>>(&self, record_number: I, record: Py<Row>) -> PyResult<()> {
         todo!()
     }
 
@@ -210,8 +237,8 @@ impl DataFlexTable {
     // <editor-fold desc="// Magic Methods ...">
 
     #[new]
-    fn __new__(filepath: String) -> PyResult<Self> {
-        Self::from_path(AsRef::<str>::as_ref(&filepath))
+    fn __new__(py: Python, filepath: String) -> PyResult<Self> {
+        Py::extract(&Self::from_path(AsRef::<str>::as_ref(&filepath))?, py)
     }
 
     fn __str__(slf: PyRef<Self>) -> String {
@@ -229,17 +256,16 @@ impl DataFlexTable {
     fn __getitem__(
         slf: PyRef<Self>,
         key: AttrIndexSliceOrItem<Row>,
-    ) -> PyResult<ValueOrSlice<PyObject>> {
+    ) -> PyResult<ValueOrSlice<Py<Row>>> {
         Python::with_gil(|py| match key {
             // When an actual Row is supplied as the "needle"
             AttrIndexSliceOrItem::Item(_) => Err(PyNotImplementedError::new_err("")),
             // When an "attribute name" is supplied as the "needle"
             AttrIndexSliceOrItem::Name(_) => Err(PyNotImplementedError::new_err("")),
             // When a specific row number is supplied as the "needle"
-            AttrIndexSliceOrItem::Index(idx) => Ok(ValueOrSlice::Value(Row::to_object(
-                &(slf.nth_record(idx as i64)?),
-                py,
-            ))),
+            AttrIndexSliceOrItem::Index(idx) => {
+                Ok(ValueOrSlice::Value(slf.nth_record(idx as i64)?))
+            }
             // When a "range" of row numbers is supplied as the "needle"
             AttrIndexSliceOrItem::Slice(slc) => {
                 let indexes: PySliceIndices = slc.indices(3)?;
@@ -253,16 +279,16 @@ impl DataFlexTable {
                     return Err(PyIndexError::new_err(""));
                 }
 
-                let mut data = Vec::<PyObject>::new();
+                let mut data = Vec::<Py<Row>>::new();
 
                 for idx in start..end {
                     match slf.nth_record(idx) {
-                        Ok(row) => data.push(Row::to_object(&row, py)),
+                        Ok(row) => data.push(row),
                         Err(_) => {
                             return Err(InternalError::new_err(format!(
                                 "Could not read data for row {} from '{}'!",
                                 idx,
-                                (slf.header.file_root_name).as_str()
+                                (Py::borrow(&slf.header, py).file_root_name).as_str()
                             )));
                         }
                     }
@@ -276,12 +302,12 @@ impl DataFlexTable {
     fn __setitem__(
         mut slf: PyRefMut<Self>,
         key: AttrIndexSliceOrItem<Row>,
-        value: &PyAny,
+        value: Py<Row>,
     ) -> PyResult<()> {
         todo!()
     }
 
-    fn __delitem__(mut slf: PyRefMut<Self>, index: AttrIndexSliceOrItem<Row>) -> PyResult<()> {
+    fn __delitem__(mut slf: PyRefMut<Self>, index: AttrIndexSliceOrItem<Py<Row>>) -> PyResult<()> {
         todo!()
     }
 
@@ -309,7 +335,7 @@ impl DataFlexTable {
         slf._as_pretty_table().to_string()
     }
 
-    fn index(slf: PyRef<Self>, record: &PyAny) -> PyResult<i32> {
+    fn index(slf: PyRef<Self>, record: Py<Row>) -> PyResult<i32> {
         todo!()
     }
 
@@ -317,19 +343,19 @@ impl DataFlexTable {
         todo!()
     }
 
-    fn insert(mut slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
+    fn insert(mut slf: PyRefMut<Self>, record: Py<Row>) -> PyResult<()> {
         todo!()
     }
 
-    fn append(mut slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
+    fn append(mut slf: PyRefMut<Self>, record: Py<Row>) -> PyResult<()> {
         todo!()
     }
 
-    fn extend(mut slf: PyRefMut<Self>, records: &PyTuple) -> PyResult<()> {
+    fn extend(mut slf: PyRefMut<Self>, records: Vec<Py<Row>>) -> PyResult<()> {
         todo!()
     }
 
-    fn remove(mut slf: PyRefMut<Self>, record: &PyAny) -> PyResult<()> {
+    fn remove(mut slf: PyRefMut<Self>, record: Py<Row>) -> PyResult<()> {
         todo!()
     }
 
