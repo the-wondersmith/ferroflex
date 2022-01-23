@@ -15,11 +15,14 @@ use serde::{Deserialize, Serialize};
 // <editor-fold desc="// IndexType ...">
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
+/// A structured representation of an index's "type"
 pub enum IndexType {
     Batch,
     Online,
     Unknown,
 }
+
+unsafe impl Send for IndexType {}
 
 impl Default for IndexType {
     fn default() -> Self {
@@ -38,6 +41,15 @@ impl fmt::Display for IndexType {
                 IndexType::Unknown => "UNKNOWN",
             }
         )
+    }
+}
+
+impl From<bool> for IndexType {
+    fn from(value: bool) -> Self {
+        match value {
+            true => IndexType::Batch,
+            false => IndexType::Online,
+        }
     }
 }
 
@@ -60,26 +72,20 @@ impl IntoPy<PyObject> for IndexType {
     }
 }
 
-impl From<bool> for IndexType {
-    fn from(value: bool) -> Self {
-        match value {
-            true => IndexType::Batch,
-            false => IndexType::Online,
-        }
-    }
-}
-
 // </editor-fold desc="// IndexType ...">
 
 // <editor-fold desc="// IndexCollation ...">
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
+/// A structured representation of an index's collation / sort order
 pub enum IndexCollation {
     Default,
     Ascending,
     Uppercase,
     Unknown,
 }
+
+unsafe impl Send for IndexCollation {}
 
 impl Default for IndexCollation {
     fn default() -> Self {
@@ -143,6 +149,7 @@ impl IntoPy<PyObject> for IndexCollation {
 // <editor-fold desc="// DataType ...">
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
+/// A structured representation of type of data stored in a given column
 pub enum DataType {
     Int, // Technically actually 'Numeric'
     Date,
@@ -153,6 +160,8 @@ pub enum DataType {
     Unknown,
     // Overlap,  // Currently unimplemented
 }
+
+unsafe impl Send for DataType {}
 
 impl Default for DataType {
     fn default() -> Self {
@@ -218,6 +227,7 @@ impl IntoPy<PyObject> for DataType {
 // <editor-fold desc="// Value ...">
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
+/// A structured representation of the value stored in a given column
 pub enum Value {
     F64(f64),
     I64(i64),
@@ -226,6 +236,8 @@ pub enum Value {
     Date(NaiveDate),
     Null,
 }
+
+unsafe impl Send for Value {}
 
 impl Default for Value {
     fn default() -> Self {
@@ -286,6 +298,8 @@ impl IntoPy<PyObject> for Value {
 // <editor-fold desc="// CompressionType ...">
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
+/// A structured representation of the compression
+/// method in use on a given DataFlex table
 pub enum CompressionType {
     None,
     Fast,
@@ -293,6 +307,8 @@ pub enum CompressionType {
     Custom,
     Unknown,
 }
+
+unsafe impl Send for CompressionType {}
 
 impl Default for CompressionType {
     fn default() -> Self {
@@ -342,6 +358,8 @@ impl IntoPy<PyObject> for CompressionType {
 // <editor-fold desc="// TransactionType ...">
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
+/// A structured representation of the transaction
+/// type in use on a given DataFlex table
 pub enum TransactionType {
     None,
     Unknown,
@@ -349,6 +367,8 @@ pub enum TransactionType {
     ServerAtomic,
     ServerLogged,
 }
+
+unsafe impl Send for TransactionType {}
 
 impl Default for TransactionType {
     fn default() -> Self {
@@ -397,12 +417,16 @@ impl IntoPy<PyObject> for TransactionType {
 // <editor-fold desc="// LockType ...">
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
+/// A structured representation of the type of
+/// file locking in use on a given DataFlex table
 pub enum LockType {
     None,
     File,
     Record,
     Unknown,
 }
+
+unsafe impl Send for LockType {}
 
 impl Default for LockType {
     fn default() -> Self {
@@ -443,16 +467,21 @@ impl IntoPy<PyObject> for LockType {
         IntoPy::into_py(self.to_string(), py)
     }
 }
+
 // </editor-fold desc="// LockType ...">
 
 // <editor-fold desc="// Version ...">
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
+/// A structured representation of the "version" of
+/// a given DataFlex table's header structure
 pub enum Version {
     Unknown,
     V23B,
     V30,
 }
+
+unsafe impl Send for Version {}
 
 impl Default for Version {
     fn default() -> Self {

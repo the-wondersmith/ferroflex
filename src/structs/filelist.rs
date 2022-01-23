@@ -8,7 +8,7 @@ use std::iter::IntoIterator;
 use caseless::compatibility_caseless_match_str as cl_eq;
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3;
-use pyo3::exceptions::{PyFileNotFoundError, PyIndexError, PyKeyError};
+use pyo3::exceptions::{PyFileNotFoundError, PyIndexError, PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PySliceIndices;
 use serde::{Deserialize, Serialize};
@@ -122,28 +122,54 @@ impl FileListEntry {
 
     // <editor-fold desc="// Public Methods ...">
 
-    pub fn from_bytes<T: Into<usize>>(data: &[u8], idx: Option<T>) -> PyResult<FileListEntry> {
-        Ok(FileListEntry {
-            file_number: match idx {
-                Some(value) => value.into(),
-                None => 0usize,
+    pub fn from_bytes<T: Into<usize>>(data: &[u8], idx: Option<T>) -> PyResult<Py<FileListEntry>> {
+        let file_number = match idx {
+            Some(value) => value.into(),
+            None => 0usize,
+        };
+
+        let root_name = string_from_bytes(&data[..40], Some(false))?;
+        let dataflex_name = string_from_bytes(&data[41..73], Some(false))?;
+        let description = string_from_bytes(&data[73..], Some(false))?;
+
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+
+        if (file_number == 0usize && !cl_eq(&root_name, "filelist.cfg"))
+            || (file_number > 0usize && cl_eq(&root_name, "filelist.cfg"))
+        {
+            return Err(PyIndexError::new_err(format!(
+                "Invalid `file_number` + `root_name` pair: {} + {}",
+                &file_number, &root_name,
+            )));
+        }
+
+        if file_number > 0 && dataflex_name.is_empty() && description.is_empty() {
+            return Err(PyValueError::new_err("Missing one or more field values!"));
+        }
+
+        Py::new(
+            py,
+            FileListEntry {
+                file_number,
+                root_name,
+                dataflex_name: Some(dataflex_name),
+                description: Some(description),
             },
-            root_name: string_from_bytes(&data[..40], Some(false))?,
-            dataflex_name: match string_from_bytes(&data[41..73], Some(false)) {
-                Ok(name) => Some(name),
-                Err(_) => None,
-            },
-            description: match string_from_bytes(&data[73..], Some(false)) {
-                Ok(desc) => Some(desc),
-                Err(_) => None,
-            },
-        })
+        )
     }
 
-    pub fn is(&self, table: AttrIndexSliceOrItem<FileListEntry>) -> bool {
+    pub fn is(&self, table: &AttrIndexSliceOrItem<Py<FileListEntry>>) -> bool {
         match table {
             AttrIndexSliceOrItem::Slice(_) => false,
-            AttrIndexSliceOrItem::Item(entry) => *self == entry,
+            AttrIndexSliceOrItem::Item(entry) => {
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+
+                let is_: bool = Py::borrow(&entry, py).eq(self);
+
+                is_
+            }
             AttrIndexSliceOrItem::Name(name) => {
                 let root_name: &str = self.root_name.as_str();
                 let df_name: &str = match &self.dataflex_name {
@@ -154,10 +180,10 @@ impl FileListEntry {
                 cl_eq(name, root_name) || cl_eq(name, df_name)
             }
             AttrIndexSliceOrItem::Index(index) => {
-                if index < 0 {
+                if *index < 0isize {
                     return false;
                 }
-                self.file_number as isize == index
+                self.file_number as isize == *index
             }
         }
     }
@@ -169,33 +195,55 @@ impl FileListEntry {
 impl FileListEntry {
     #[new]
     fn __new__(
-        file_number: Option<usize>,
-        root_name: Option<String>,
+        file_number: usize,
+        root_name: String,
         dataflex_name: Option<String>,
         description: Option<String>,
     ) -> PyResult<Self> {
         Ok(Self {
-            file_number: file_number.unwrap_or(0usize),
-            root_name: root_name.unwrap_or_else(|| "".to_string()),
+            file_number,
+            root_name,
             dataflex_name,
             description,
         })
     }
 
-    fn __str__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __repr__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn pretty(slf: PyRefMut<Self>) -> String {
+    fn pretty(slf: PyRef<Self>) -> String {
         slf._as_pretty_table()
     }
 }
 
 // </editor-fold desc="// FileListEntry ...">
+
+// <editor-fold desc="// EntryIterator ...">
+
+#[pyclass(dict, module = "ferroflex.structs")]
+/// An iterator over the entries in a DataFlex `filelist.cfg` file
+struct EntryIterator {
+    entries: Box<dyn Iterator<Item = Py<FileListEntry>>>,
+}
+
+unsafe impl Send for EntryIterator {}
+
+#[pyproto]
+impl pyo3::PyIterProtocol for EntryIterator {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+    fn __next__(mut slf: PyRefMut<Self>) -> Option<Py<FileListEntry>> {
+        slf.entries.next()
+    }
+}
+
+// </editor-fold desc="// EntryIterator ...">
 
 // <editor-fold desc="// FileList ...">
 
@@ -205,19 +253,19 @@ impl FileListEntry {
 pub struct FileList {
     /// A table's numeric index within
     /// the DataFlex "database"
-    pub files: Vec<FileListEntry>,
+    pub files: Vec<Py<FileListEntry>>,
 }
 
 unsafe impl Send for FileList {}
 
 impl fmt::Display for FileList {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self._as_pretty_table())
+        write!(f, "FileList<tables: {}>", self.files.len())
     }
 }
 
 impl IntoIterator for FileList {
-    type Item = FileListEntry;
+    type Item = Py<FileListEntry>;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -229,11 +277,14 @@ impl FileList {
     // <editor-fold desc="// 'Private' Methods ...">
 
     pub(crate) fn _as_pretty_table(&self) -> String {
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+
         let mut table = PrettyTable::new();
 
         self.files.iter().for_each(|entry| {
             table.add_row(PrettyRow::from(vec![PrettyCell::new(
-                entry._as_pretty_table().as_str(),
+                Py::borrow(entry, py)._as_pretty_table().as_str(),
             )]));
         });
 
@@ -249,29 +300,10 @@ impl FileList {
             files: data
                 .chunks_exact(128)
                 .enumerate()
-                .map(|(idx, chunk)| FileListEntry::from_bytes(chunk, Some(idx)).unwrap_or_default())
-                .filter(|entry| {
-                    if cl_eq(entry.root_name.as_str(), "filelist.cfg") && entry.file_number == 0 {
-                        return true;
-                    }
-
-                    let df_name: bool = match entry.dataflex_name.as_ref() {
-                        None => false,
-                        Some(val) => !val.is_empty(),
-                    };
-
-                    let desc: bool = match entry.description.as_ref() {
-                        None => false,
-                        Some(val) => !val.is_empty(),
-                    };
-
-                    let name: bool = !cl_eq(entry.root_name.as_str(), "filelist.cfg")
-                        && !entry.root_name.is_empty()
-                        && entry.file_number >= 1;
-
-                    name && (df_name || desc)
-                })
-                .collect::<Vec<FileListEntry>>(),
+                .map(|(idx, chunk)| FileListEntry::from_bytes(chunk, Some(idx)))
+                .filter(PyResult::is_ok)
+                .map(PyResult::unwrap)
+                .collect::<Vec<Py<FileListEntry>>>(),
         })
     }
 
@@ -295,14 +327,14 @@ impl FileList {
         self.len() == 0
     }
 
-    pub fn iter(&self) -> std::slice::Iter<FileListEntry> {
+    pub fn iter(&self) -> std::slice::Iter<Py<FileListEntry>> {
         self.files.iter()
     }
 
     pub fn get(
         &'fl self,
-        table: AttrIndexSliceOrItem<FileListEntry>,
-    ) -> Option<&'fl FileListEntry> {
+        table: AttrIndexSliceOrItem<Py<FileListEntry>>,
+    ) -> Option<&'fl Py<FileListEntry>> {
         let table = if let AttrIndexSliceOrItem::Index(index) = table {
             let index = iif!(index > -1, index, self.files.len() as isize + index);
 
@@ -317,11 +349,11 @@ impl FileList {
 
         self.files
             .iter()
-            .filter(|entry| entry.is(table.clone()))
+            .filter(|entry| Python::with_gil(|py| Py::borrow(entry, py).is(&table)))
             .next()
     }
 
-    pub fn contains(&self, table: AttrIndexSliceOrItem<FileListEntry>) -> bool {
+    pub fn contains(&self, table: AttrIndexSliceOrItem<Py<FileListEntry>>) -> bool {
         match self.get(table) {
             Some(_) => true,
             None => false,
@@ -331,12 +363,10 @@ impl FileList {
     // </editor-fold desc="// Public Methods ...">
 }
 
-// TODO: Add impl for PyIterator trait to FileList object
-
 #[pymethods]
 impl FileList {
     #[new]
-    fn __new__(filepath: Option<String>, files: Option<Vec<FileListEntry>>) -> PyResult<Self> {
+    fn __new__(filepath: Option<String>, files: Option<Vec<Py<FileListEntry>>>) -> PyResult<Self> {
         let mut file_list = match filepath {
             None => Self::default(),
             Some(path) => Self::from_path(path)?,
@@ -349,27 +379,24 @@ impl FileList {
         Ok(file_list)
     }
 
-    fn __str__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __repr__(slf: PyRefMut<Self>) -> PyResult<String> {
+    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
         Ok(format!("{}", *slf))
     }
 
-    fn __len__(slf: PyRefMut<Self>) -> usize {
+    fn __len__(slf: PyRef<Self>) -> usize {
         slf.len()
     }
 
     fn __getitem__(
-        slf: PyRefMut<Self>,
-        key: AttrIndexSliceOrItem<FileListEntry>,
-    ) -> PyResult<ValueOrSlice<FileListEntry>> {
+        slf: PyRef<Self>,
+        key: AttrIndexSliceOrItem<PyRef<FileListEntry>>,
+    ) -> PyResult<ValueOrSlice<Py<FileListEntry>>> {
         match key {
-            #[allow(unused_variables)]
-            AttrIndexSliceOrItem::Item(item) => {
-                todo!()
-            }
+            AttrIndexSliceOrItem::Item(_) => Err(PyKeyError::new_err("")),
             AttrIndexSliceOrItem::Index(idx) => {
                 let idx: isize = iif!(idx > -1, idx, slf.files.len() as isize + idx);
 
@@ -379,22 +406,23 @@ impl FileList {
 
                 let idx: usize = idx as usize;
 
-                let rec: Option<&FileListEntry> = slf.files.get(idx);
+                let rec: Option<&Py<FileListEntry>> = slf.files.get(idx);
 
-                if rec.is_none() {
-                    return Err(PyIndexError::new_err(""));
+                match rec {
+                    None => Err(PyIndexError::new_err("")),
+                    Some(record) => {
+                        Python::with_gil(|py| Ok(ValueOrSlice::Value(Py::clone_ref(record, py))))
+                    }
                 }
-
-                Ok(ValueOrSlice::Value(rec.unwrap().clone()))
             }
-            AttrIndexSliceOrItem::Name(name) => {
+            AttrIndexSliceOrItem::Name(name) => Python::with_gil(|py| {
                 for table in slf.files.iter() {
-                    if table.is(AttrIndexSliceOrItem::Name(name)) {
-                        return Ok(ValueOrSlice::Value(table.clone()));
+                    if Py::borrow(table, py).is(&AttrIndexSliceOrItem::Name(name)) {
+                        return Ok(ValueOrSlice::Value(Py::clone_ref(table, py)));
                     }
                 }
                 Err(PyKeyError::new_err(""))
-            }
+            }),
             AttrIndexSliceOrItem::Slice(slc) => {
                 let indexes: PySliceIndices = slc.indices(3)?;
 
@@ -410,38 +438,68 @@ impl FileList {
                 let end: usize = end as usize;
                 let start: usize = start as usize;
 
-                Ok(ValueOrSlice::Slice((&slf.files)[start..end].to_vec()))
+                Ok(ValueOrSlice::Slice(slf.files[start..end].to_vec()))
             }
         }
     }
 
     fn __setitem__(
-        _slf: PyRefMut<Self>,
-        _index: isize,
-        _record: PyRef<FileListEntry>,
+        mut slf: PyRefMut<Self>,
+        index: isize,
+        record: Py<FileListEntry>,
     ) -> PyResult<()> {
-        todo!()
+        let index: isize = iif!(index > -1, index, slf.files.len() as isize + index);
+
+        if index < 0 {
+            return Err(PyIndexError::new_err(""));
+        }
+
+        match slf.files.get_mut(index as usize) {
+            None => slf.files.push(record),
+            Some(entry) => {
+                std::mem::drop(std::mem::replace(entry, record));
+            }
+        }
+
+        Ok(())
     }
 
-    fn __delitem__(_slf: PyRefMut<Self>, _index: isize) -> PyResult<()> {
-        todo!()
+    fn __delitem__(mut slf: PyRefMut<Self>, index: isize) -> PyResult<()> {
+        let index: isize = iif!(index > -1, index, slf.files.len() as isize + index);
+
+        if index < 0 || index >= slf.files.len() as isize {
+            return Err(PyIndexError::new_err(""));
+        }
+
+        slf.files.remove(index as usize);
+
+        Ok(())
     }
 
-    #[allow(unused_variables)]
-    fn __iter__(slf: PyRef<Self>) -> PyResult<()> {
-        todo!()
+    fn __iter__(slf: PyRef<Self>) -> EntryIterator {
+        EntryIterator {
+            entries: Box::new(slf.files.clone().into_iter()),
+        }
     }
 
-    fn __contains__(slf: PyRefMut<Self>, table: AttrIndexSliceOrItem<FileListEntry>) -> bool {
+    fn __contains__(slf: PyRef<Self>, table: AttrIndexSliceOrItem<Py<FileListEntry>>) -> bool {
         slf.contains(table)
     }
 
-    fn __reversed__(_slf: PyRef<Self>) -> PyResult<Vec<FileListEntry>> {
-        todo!()
+    fn __reversed__(slf: PyRef<Self>) -> EntryIterator {
+        EntryIterator {
+            entries: Box::new(slf.files.clone().into_iter().rev()),
+        }
     }
 
-    fn pretty(slf: PyRefMut<Self>) -> String {
+    fn pretty(slf: PyRef<Self>) -> String {
         slf._as_pretty_table()
+    }
+
+    fn append(slf: PyRefMut<Self>, record: Py<FileListEntry>) -> PyResult<()> {
+        let idx = (slf.len() + 1) as isize;
+
+        FileList::__setitem__(slf, idx, record)
     }
 }
 

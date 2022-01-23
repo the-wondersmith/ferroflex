@@ -48,7 +48,7 @@ pub(crate) fn register_components(py: Python, ferroflex_module: &PyModule) -> Py
     structs_module.add_class::<FieldSegment>()?;
 
     // Table
-    // structs_module.add_class::<Row>()?;
+    structs_module.add_class::<Row>()?;
     structs_module.add_class::<Header>()?;
     structs_module.add_class::<DataFlexTable>()?;
 
