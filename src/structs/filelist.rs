@@ -3,6 +3,7 @@
 // Standard Library Imports
 use std::fmt;
 use std::iter::IntoIterator;
+use std::path::Path;
 
 // Third-Party Imports
 use caseless::compatibility_caseless_match_str as cl_eq;
@@ -12,7 +13,7 @@ use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
 
 // Crate-Level Imports
-use crate::utils::{bytes_from_file, string_from_bytes};
+use crate::utils::{bytes_from_file, path_from_string, string_from_bytes};
 use crate::{iif, AttrIndexSliceOrItem};
 
 // <editor-fold desc="// FileListEntry ...">
@@ -232,13 +233,24 @@ impl FileList {
     }
 
     pub fn from_path<T: AsRef<str>>(filepath: T) -> PyResult<FileList> {
-        let filepath: &str = AsRef::<str>::as_ref(&filepath);
+        let mut filepath = AsRef::<str>::as_ref(&filepath).to_string();
 
-        match bytes_from_file(filepath, None::<u64>, None::<u64>) {
+        if !filepath.ends_with("filelist.cfg") {
+            if let Some(path) = Path::join(
+                path_from_string(&filepath, Some(true)).as_path(),
+                "filelist.cfg",
+            )
+            .to_str()
+            {
+                filepath = path.to_string();
+            }
+        }
+
+        match bytes_from_file(&filepath, None::<u64>, None::<u64>) {
             Ok(data) => Ok(FileList::from_bytes(&data)?),
             Err(_) => Err(PyFileNotFoundError::new_err(format!(
                 "Could not create a usable `FileList` from path '{}'",
-                filepath
+                &filepath
             ))),
         }
     }
