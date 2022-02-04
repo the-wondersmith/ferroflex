@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 // Crate-Level Imports
 use crate::enums::Value;
-use crate::{iif, AttrIndexSliceOrItem, ValueOrSlice};
+use crate::{AttrIndexSliceOrItem, ValueOrSlice};
 
 // <editor-fold desc="// Row ...">
 
@@ -43,14 +43,40 @@ impl Deref for Row {
     }
 }
 
+impl Row {
+    // <editor-fold desc="// 'Private' Methods ...">
+
+    fn _as_pretty_table(&self) -> String {
+        todo!()
+    }
+
+    // </editor-fold desc="// 'Private' Methods ...">
+
+    // <editor-fold desc="// Public Methods ...">
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn iter(&self) -> () {
+        todo!()
+    }
+
+    // </editor-fold desc="// Public Methods ...">
+}
+
 #[allow(unused_mut, unused_variables)]
 #[pymethods]
 impl Row {
     // <editor-fold desc="// Magic Methods ...">
 
     #[new]
-    fn __new__(py: Python, filepath: String) -> PyResult<Self> {
-        Ok(Row { data: Vec::new() })
+    fn __new__(values: Vec<Value>) -> PyResult<Self> {
+        Ok(Row { data: values })
     }
 
     fn __str__(slf: PyRef<Self>) -> String {
@@ -105,7 +131,7 @@ impl Row {
     // <editor-fold desc="// Instance Methods ...">
 
     fn pretty(slf: PyRef<Self>) -> String {
-        slf._as_pretty_table().to_string()
+        slf._as_pretty_table()
     }
 
     fn index(slf: PyRef<Self>, record: Value) -> PyResult<i32> {
