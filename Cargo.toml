@@ -38,6 +38,7 @@ caseless = "^0.2"
 byteorder = "^1.4"
 itertools = "^0.10"
 lazy_static = "^1.4"
+async-trait = "0.1.52"
 prettytable-rs = "^0.8"
 pyo3-build-config = "^0.15"
 pyo3-chrono = { version = "^0.3", features = ["serde"] }
