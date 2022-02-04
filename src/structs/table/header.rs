@@ -8,7 +8,7 @@ use std::fmt;
 use byteorder::{ByteOrder, LittleEndian};
 use caseless::compatibility_caseless_match_str as cl_eq;
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
-use pyo3::prelude::*;
+use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
 
 // Crate-Level Imports
@@ -19,93 +19,73 @@ use crate::utils::{bytes_from_file, path_from_string, string_from_bytes};
 
 // <editor-fold desc="// Header ...">
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[pyclass(dict, module = "ferroflex.structs")]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
 /// A structured representation of the header portion
 /// of a DataFlex table file
 pub struct Header {
     // Common Attributes
-    #[pyo3(get)]
     /// The total number of columns in the table
     pub field_count: u64,
-    #[pyo3(get)]
     /// The total number of records currently
     /// present in the table
     pub record_count: u64,
-    #[pyo3(get)]
     /// The total length (in bytes) of the data
     /// that makes up one "row" in the table
     pub record_length: u64,
-    #[pyo3(get)]
     /// The absolute maximum number of records
     /// that the table should be allowed to store
     pub max_record_count: u64,
-    #[pyo3(get)]
     /// The absolute maximum number of records
     /// that the table has *ever* stored
     pub highest_record_count: u64,
-    #[pyo3(get)]
     /// Indicates that the bytes occupied by
     /// records deleted from the table should
     /// be overwritten with null bytes instead
     /// of being "snipped" from the table
     pub reuse_deleted_space: bool,
-    #[pyo3(get)]
     /// Indicates that the table is configured
     /// for simultaneous access by multiple users
     pub multiuser_reread_active: bool,
     // Embedded Structures
-    #[pyo3(get)]
     /// The header's "index table"
-    pub indexes: Vec<Py<Index>>,
-    #[pyo3(get)]
+    pub indexes: Vec<Index>,
     /// The name of the on-disk table file to
     /// which the header belongs
     pub file_root_name: String,
-    #[pyo3(get)]
     /// The header's "column" table
-    pub columns: Vec<Py<Column>>,
+    pub columns: Vec<Column>,
     // Computed Attributes
     /// The total number of records present
     /// within a given "block" of bytes
     pub records_per_block: u64,
-    #[pyo3(get)]
     /// The total number of "filler" bytes
     /// that should be expected at the end
     /// of every "block" of records
     pub fill_bytes_per_block: u64,
-    #[pyo3(get)]
     /// The version of DataFlex in use when
     /// the table was initially created
     pub version: Version,
-    #[pyo3(get)]
     /// The absolute path of the table's
     /// on-disk file
     pub filepath: String,
     // DataFlex 3.0+ Attributes
-    // #[pyo3(get)]
     /// Denotes the type of compression used
     /// to shrink the table's on-disk size
     _compression_type: Option<CompressionType>,
-    // #[pyo3(get)]
     /// Indicates that the table is currently
     /// locked for reading or writing
     _file_locking1: Option<bool>,
-    // #[pyo3(get)]
     /// Indicates that the table is currently
     /// locked for reading or writing
     _file_locking2: Option<bool>,
-    // #[pyo3(get)]
     /// (unverified) Denotes the offset at which
     /// the table's first "available" record can
     /// be found
     _first_available_record: Option<u64>,
-    // #[pyo3(get)]
     /// Indicates that integrity verification
     /// is currently enabled for the table's
     /// header section
     _header_integrity_enabled: Option<bool>,
-    // #[pyo3(get)]
     /// Indicates that new records should
     /// be written to the nulled-over space
     /// previously occupied by any records
@@ -135,45 +115,35 @@ impl Header {
     // <editor-fold desc="// 'Private' Methods ...">
 
     fn _ensure_column_sizes(mut self) -> Self {
-        Python::with_gil(|py| {
-            let column_count = self.columns.len();
+        let column_count = self.columns.len();
 
-            if column_count == 1 {
-                Py::borrow_mut(&self.columns[0], py).length = self.record_length;
-                return self;
-            }
+        if column_count == 1 {
+            self.columns[0].length = self.record_length;
+            return self;
+        }
 
-            let offset_pairs: Vec<(u64, u64)> = self
-                .columns
-                .iter()
-                .enumerate()
-                .map(|pair| {
-                    if pair.0 == column_count - 1 {
-                        (
-                            Py::borrow(pair.1, py).offset,
-                            Py::borrow(&self.columns[pair.0 - 1], py).offset,
-                        )
-                    } else {
-                        (
-                            Py::borrow(pair.1, py).offset,
-                            Py::borrow(&self.columns[pair.0 + 1], py).offset,
-                        )
-                    }
-                })
-                .collect();
-
-            for (pos, col) in self.columns.iter_mut().enumerate() {
-                let mut col = Py::borrow_mut(col, py);
-
-                if pos == column_count - 1 {
-                    col.length = offset_pairs[pos].0 - offset_pairs[pos].1;
+        let offset_pairs: Vec<(u64, u64)> = self
+            .columns
+            .iter()
+            .enumerate()
+            .map(|pair| {
+                if pair.0 == column_count - 1 {
+                    (pair.1.offset, self.columns[pair.0 - 1].offset)
                 } else {
-                    col.length = offset_pairs[pos].1 - offset_pairs[pos].0;
+                    (pair.1.offset, self.columns[pair.0 + 1].offset)
                 }
-            }
+            })
+            .collect();
 
-            self
-        })
+        for (pos, col) in self.columns.iter_mut().enumerate() {
+            if pos == column_count - 1 {
+                col.length = offset_pairs[pos].0 - offset_pairs[pos].1;
+            } else {
+                col.length = offset_pairs[pos].1 - offset_pairs[pos].0;
+            }
+        }
+
+        self
     }
 
     fn _get_header_bytes_from(table_path: &str) -> PyResult<Vec<u8>> {
@@ -242,7 +212,7 @@ impl Header {
                 PrettyCell::new(value.to_string().as_str()),
             ]));
         };
-        if let Some(value) = self._compression_type {
+        if let Some(value) = &self._compression_type {
             outer.add_row(PrettyRow::from(vec![
                 PrettyCell::new("compression_type"),
                 PrettyCell::new(value.to_string().as_str()),
@@ -277,11 +247,11 @@ impl Header {
             // });
 
             // Option 2 - horizontal
-            Python::with_gil(|py| {
-                index_table.add_row(PrettyRow::from(self.indexes.iter().map(|index| {
-                    PrettyCell::new(Py::borrow(index, py)._as_pretty_table().as_str())
-                })))
-            });
+            index_table.add_row(PrettyRow::from(
+                self.indexes
+                    .iter()
+                    .map(|index| PrettyCell::new(index._as_pretty_table().as_str())),
+            ));
 
             outer.add_row(PrettyRow::from(vec![
                 PrettyCell::new("indexes"),
@@ -298,11 +268,11 @@ impl Header {
             // });
 
             // Option 2 - horizontal
-            Python::with_gil(|py| {
-                column_table.add_row(PrettyRow::from(self.columns.iter().map(|column| {
-                    PrettyCell::new(Py::borrow(column, py)._as_pretty_table().as_str())
-                })))
-            });
+            column_table.add_row(PrettyRow::from(
+                self.columns
+                    .iter()
+                    .map(|column| PrettyCell::new(column._as_pretty_table().as_str())),
+            ));
 
             outer.add_row(PrettyRow::from(vec![
                 PrettyCell::new("columns"),
@@ -321,7 +291,7 @@ impl Header {
         header_data: &[u8],
         column_names: Vec<String>,
         filepath: Option<T>,
-    ) -> PyResult<Py<Header>> {
+    ) -> PyResult<Header> {
         // Ensure that we've been given at least as many bytes
         // as we actually need, then build the header accordingly
 
@@ -334,115 +304,105 @@ impl Header {
         let column_names: Vec<String> =
             TagFile::generate_column_names(field_count, Some(column_names))?;
 
-        Python::with_gil(|py| {
-            Py::new(
-                py,
-                match header_data.len() {
-                    512usize => {
-                        Header {
-                            // Common Attributes
-                            field_count: header_data[0x59] as u64,
-                            record_count: LittleEndian::read_u16(&header_data[0x08..0x0C]) as u64,
-                            record_length: LittleEndian::read_u16(&header_data[0x4E..0x50]) as u64,
-                            max_record_count: LittleEndian::read_u16(&header_data[0x0C..0x10])
-                                as u64,
-                            highest_record_count: LittleEndian::read_u16(&header_data[..0x03])
-                                as u64,
-                            reuse_deleted_space: header_data[0x58] == 0,
-                            multiuser_reread_active: !matches!(header_data[0x5C], 0),
-                            // Embedded Structures
-                            indexes: Index::table_from_bytes(header_data[0x64..0xB4].into())?,
-                            file_root_name: string_from_bytes(
-                                &header_data[0xB4..0xBD].to_vec(),
-                                Some(false),
-                            )?,
-                            columns: Column::table_from_bytes(
-                                header_data[0xC4..0x1FD].into(),
-                                Some(column_names),
-                            )?,
-                            // Computed Attributes
-                            records_per_block: max(
-                                512 / LittleEndian::read_u16(&header_data[0x4E..0x50]),
-                                1,
-                            ) as u64,
-                            fill_bytes_per_block: (512
-                                % min(512, LittleEndian::read_u16(&header_data[0x4E..0x50])))
-                                as u64,
-                            version: Version::V23B,
-                            filepath: if let Some(file) = filepath {
-                                file.as_ref().to_string()
-                            } else {
-                                String::new()
-                            },
-                            ..Header::default()
-                        }
-                    }
-                    3072usize => {
-                        Header {
-                            // Common Attributes
-                            field_count: header_data[0xA5] as u64,
-                            record_count: LittleEndian::read_u16(&header_data[0x08..0x0C]) as u64,
-                            record_length: LittleEndian::read_u16(&header_data[0x9A..0x9C]) as u64,
-                            max_record_count: LittleEndian::read_u16(&header_data[0x0C..0x10])
-                                as u64,
-                            highest_record_count: LittleEndian::read_u16(&header_data[..0x03])
-                                as u64,
-                            reuse_deleted_space: header_data[0x4A] == 0,
-                            multiuser_reread_active: false,
-                            // Embedded Structures
-                            indexes: Index::table_from_bytes(header_data[0xB0..0x1D0].into())?,
-                            file_root_name: string_from_bytes(
-                                &header_data[0x2D0..0x2E0].to_vec(),
-                                Some(false),
-                            )?,
-                            columns: Column::table_from_bytes(
-                                header_data[0x2E0..0xAD8].into(),
-                                Some(column_names),
-                            )?,
-                            // Computed Attributes
-                            records_per_block: LittleEndian::read_u16(&header_data[0x98..0x9A])
-                                as u64,
-                            fill_bytes_per_block: (512
-                                % min(512u16, LittleEndian::read_u16(&header_data[0x9A..0x9C])))
-                                as u64,
-                            filepath: if let Some(file) = filepath {
-                                file.as_ref().to_string()
-                            } else {
-                                String::new()
-                            },
-                            version: Version::V30,
-                            // V3 Attributes
-                            _compression_type: match header_data[0x1F] {
-                                0 => Some(CompressionType::None),
-                                1 => Some(CompressionType::Fast),
-                                2 => Some(CompressionType::Standard),
-                                _ => None,
-                            },
-                            _file_locking1: Some(!matches!(header_data[0x41], 0)),
-                            _file_locking2: Some(header_data[0xA8] == 1),
-                            _first_available_record: Some(LittleEndian::read_u16(
-                                &header_data[0x20..0x24],
-                            ) as u64),
-                            _header_integrity_enabled: Some(
-                                header_data[0x10..0x14].iter().sum::<u8>() == 0u8,
-                            ),
-                            _reuse_deleted_records: Some(header_data[0xA4] == 1),
-                            ..Header::default()
-                        }
-                        ._ensure_column_sizes()
-                    }
-                    _ => {
-                        return Err(InternalError::new_err(format!(
-                            "Expected either 512 or 3072 bytes but actually got {}",
-                            header_data.len()
-                        )));
-                    }
-                },
-            )
+        Ok(match header_data.len() {
+            512usize => {
+                Header {
+                    // Common Attributes
+                    field_count: header_data[0x59] as u64,
+                    record_count: LittleEndian::read_u16(&header_data[0x08..0x0C]) as u64,
+                    record_length: LittleEndian::read_u16(&header_data[0x4E..0x50]) as u64,
+                    max_record_count: LittleEndian::read_u16(&header_data[0x0C..0x10]) as u64,
+                    highest_record_count: LittleEndian::read_u16(&header_data[..0x03]) as u64,
+                    reuse_deleted_space: header_data[0x58] == 0,
+                    multiuser_reread_active: !matches!(header_data[0x5C], 0),
+                    // Embedded Structures
+                    indexes: Index::table_from_bytes(header_data[0x64..0xB4].into())?,
+                    file_root_name: string_from_bytes(
+                        &header_data[0xB4..0xBD].to_vec(),
+                        Some(false),
+                    )?,
+                    columns: Column::table_from_bytes(
+                        header_data[0xC4..0x1FD].into(),
+                        Some(column_names),
+                    )?,
+                    // Computed Attributes
+                    records_per_block: max(
+                        512 / LittleEndian::read_u16(&header_data[0x4E..0x50]),
+                        1,
+                    ) as u64,
+                    fill_bytes_per_block: (512
+                        % min(512, LittleEndian::read_u16(&header_data[0x4E..0x50])))
+                        as u64,
+                    version: Version::V23B,
+                    filepath: if let Some(file) = filepath {
+                        file.as_ref().to_string()
+                    } else {
+                        String::new()
+                    },
+                    ..Header::default()
+                }
+            }
+            3072usize => {
+                Header {
+                    // Common Attributes
+                    field_count: header_data[0xA5] as u64,
+                    record_count: LittleEndian::read_u16(&header_data[0x08..0x0C]) as u64,
+                    record_length: LittleEndian::read_u16(&header_data[0x9A..0x9C]) as u64,
+                    max_record_count: LittleEndian::read_u16(&header_data[0x0C..0x10]) as u64,
+                    highest_record_count: LittleEndian::read_u16(&header_data[..0x03]) as u64,
+                    reuse_deleted_space: header_data[0x4A] == 0,
+                    multiuser_reread_active: false,
+                    // Embedded Structures
+                    indexes: Index::table_from_bytes(header_data[0xB0..0x1D0].into())?,
+                    file_root_name: string_from_bytes(
+                        &header_data[0x2D0..0x2E0].to_vec(),
+                        Some(false),
+                    )?,
+                    columns: Column::table_from_bytes(
+                        header_data[0x2E0..0xAD8].into(),
+                        Some(column_names),
+                    )?,
+                    // Computed Attributes
+                    records_per_block: LittleEndian::read_u16(&header_data[0x98..0x9A]) as u64,
+                    fill_bytes_per_block: (512
+                        % min(512u16, LittleEndian::read_u16(&header_data[0x9A..0x9C])))
+                        as u64,
+                    filepath: if let Some(file) = filepath {
+                        file.as_ref().to_string()
+                    } else {
+                        String::new()
+                    },
+                    version: Version::V30,
+                    // V3 Attributes
+                    _compression_type: match header_data[0x1F] {
+                        0 => Some(CompressionType::None),
+                        1 => Some(CompressionType::Fast),
+                        2 => Some(CompressionType::Standard),
+                        _ => None,
+                    },
+                    _file_locking1: Some(!matches!(header_data[0x41], 0)),
+                    _file_locking2: Some(header_data[0xA8] == 1),
+                    _first_available_record: Some(
+                        LittleEndian::read_u16(&header_data[0x20..0x24]) as u64
+                    ),
+                    _header_integrity_enabled: Some(
+                        header_data[0x10..0x14].iter().sum::<u8>() == 0u8,
+                    ),
+                    _reuse_deleted_records: Some(header_data[0xA4] == 1),
+                    ..Header::default()
+                }
+                ._ensure_column_sizes()
+            }
+            _ => {
+                return Err(InternalError::new_err(format!(
+                    "Expected either 512 or 3072 bytes but actually got {}",
+                    header_data.len()
+                )));
+            }
         })
     }
 
-    pub fn from_path(filepath: &str) -> PyResult<Py<Header>> {
+    pub fn from_path(filepath: &str) -> PyResult<Header> {
         // 1 - Ensure the provided path is actually a table
         //     - If it's not, return Header::default()
         // 2 - Try to find the table's tag file
@@ -484,26 +444,6 @@ impl Header {
     }
 
     // </editor-fold desc="// 'Public' Methods ...">
-}
-
-#[pymethods]
-impl Header {
-    #[new]
-    fn __new__(py: Python, filepath: String) -> PyResult<Self> {
-        Py::extract(&Self::from_path(filepath.as_ref())?, py)
-    }
-
-    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
-        Ok(format!("{}", *slf))
-    }
-
-    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
-        Ok(format!("{}", *slf))
-    }
-
-    fn pretty(slf: PyRef<Self>) -> String {
-        slf._as_pretty_table()
-    }
 }
 
 // </editor-fold desc="// Header ...">

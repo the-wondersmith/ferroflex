@@ -7,12 +7,9 @@
 pub mod dbapi;
 pub mod enums;
 pub mod exceptions;
+pub mod sql;
 pub mod structs;
 pub mod utils;
-
-// Conditional Declarations
-#[cfg(feature = "sql-engine")]
-pub mod sql;
 
 // Third-Party Imports
 use pyo3::prelude::*;
@@ -46,13 +43,11 @@ pub fn ferroflex(py: Python, module: &PyModule) -> PyResult<()> {
     exceptions::register_components(py, module)?;
     utils::register_components(py, module)?;
 
-    // Call the `register` function from the other crate-level modules
-    structs::register_components(py, module)?;
-
-    // If the GlueSQL features are enabled, call the `register` function
-    // from the `sql` sub-module
-    #[cfg(feature = "sql-engine")]
-    sql::register_components(py, module)?;
+    // // Call the `register` function from the other crate-level modules
+    // structs::register_components(py, module)?;
+    //
+    // // Call the `register` function from the `sql` sub-module
+    // sql::register_components(py, module)?;
 
     // Return an OK
     Ok(())

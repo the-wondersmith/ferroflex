@@ -7,8 +7,7 @@ use std::fmt;
 // Third-Party Imports
 use byteorder::{ByteOrder, LittleEndian};
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
-use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyType};
+use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
 
 // Crate-Level Imports
@@ -18,40 +17,32 @@ use crate::iif;
 // <editor-fold desc="// Column ...">
 
 #[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
-#[pyclass(dict, module = "ferroflex.structs")]
 /// A structured representation of a column's definition
 /// in the header of a DataFlex table file
 pub struct Column {
-    #[pyo3(get)]
     /// The column's human-readable name
     pub name: String,
-    #[pyo3(get)]
     /// The number of bytes between the
     /// first byte of a record and the first
     /// byte of the column's data
     pub offset: u64,
-    #[pyo3(get)]
     /// The numerical "id" of the column's
     /// "primary" index (as defined in the
     /// header of the table to which the
     /// column belongs)
     pub main_index: Option<u64>,
-    #[pyo3(get)]
     /// The number of digits to the
     /// right of the decimal (if the
     /// column represents a numerical
     /// data type)
     pub decimal_points: u64,
-    #[pyo3(get)]
     /// The total number of bytes occupied
     /// by the column's data with respect
     /// to a single row in a given table
     pub length: u64,
-    #[pyo3(get)]
     /// The "type" of data stored in /
     /// represented by the column
     pub data_type: DataType,
-    #[pyo3(get)]
     /// The numerical "id" of the table
     /// holding the "remote" column to
     /// which the column is a foreign key
@@ -59,7 +50,6 @@ pub struct Column {
     /// associated with the table to which
     /// the column belongs)
     pub related_file: Option<u64>,
-    #[pyo3(get)]
     /// The numerical "id" of the "remote"
     /// column on another table to which
     /// the column is a foreign key (as
@@ -129,60 +119,55 @@ impl Column {
 
     // <editor-fold desc="// Public Methods ...">
 
-    pub fn from_bytes(data: &[u8], name: Option<&str>) -> PyResult<Py<Column>> {
+    pub fn from_bytes(data: &[u8], name: Option<&str>) -> PyResult<Column> {
         let decimal_points: u64 = iif!(data[4] == 1, data[2] & 0x0F, 0u8) as u64;
 
-        Python::with_gil(|py| {
-            Py::new(
-                py,
-                Column {
-                    decimal_points,
-                    length: data[3] as u64,
-                    name: name.unwrap_or("").to_string(),
-                    offset: LittleEndian::read_u16(&data[..2]) as u64,
-                    data_type: match data[4] {
-                        0 => DataType::Ascii,
-                        1 => {
-                            if decimal_points > 0 {
-                                DataType::Float
-                            } else {
-                                DataType::Int
-                            }
-                        }
-                        2 => DataType::Date,
-                        // 3 => DataType::Overlap,
-                        5 => DataType::Text,
-                        _ => DataType::Binary,
-                    },
-                    main_index: {
-                        let idx = data[2] >> 4 & 0x0F;
-
-                        if idx > 0 {
-                            Some(idx as u64)
-                        } else {
-                            None
-                        }
-                    },
-                    related_file: if data[5] > 0 {
-                        Some(data[5] as u64)
+        Ok(Column {
+            decimal_points,
+            length: data[3] as u64,
+            name: name.unwrap_or("").to_string(),
+            offset: LittleEndian::read_u16(&data[..2]) as u64,
+            data_type: match data[4] {
+                0 => DataType::Ascii,
+                1 => {
+                    if decimal_points > 0 {
+                        DataType::Float
                     } else {
-                        None
-                    },
-                    related_field: {
-                        let field = LittleEndian::read_u16(&data[6..]);
+                        DataType::Int
+                    }
+                }
+                2 => DataType::Date,
+                // 3 => DataType::Overlap,
+                5 => DataType::Text,
+                _ => DataType::Binary,
+            },
+            main_index: {
+                let idx = data[2] >> 4 & 0x0F;
 
-                        if field > 0 {
-                            Some(field as u64)
-                        } else {
-                            None
-                        }
-                    },
-                },
-            )
+                if idx > 0 {
+                    Some(idx as u64)
+                } else {
+                    None
+                }
+            },
+            related_file: if data[5] > 0 {
+                Some(data[5] as u64)
+            } else {
+                None
+            },
+            related_field: {
+                let field = LittleEndian::read_u16(&data[6..]);
+
+                if field > 0 {
+                    Some(field as u64)
+                } else {
+                    None
+                }
+            },
         })
     }
 
-    pub fn table_from_bytes(data: &[u8], names: Option<Vec<String>>) -> PyResult<Vec<Py<Column>>> {
+    pub fn table_from_bytes(data: &[u8], names: Option<Vec<String>>) -> PyResult<Vec<Column>> {
         let chunks = data.chunks_exact(8);
 
         if let Some(n) = names {
@@ -192,83 +177,17 @@ impl Column {
                 .map(|pair| Column::from_bytes(pair.1, Some(&n[min(pair.0, n.len() - 1)])))
                 .filter(PyResult::is_ok)
                 .map(PyResult::unwrap)
-                .collect::<Vec<Py<Column>>>());
+                .collect::<Vec<Column>>());
         }
 
         Ok(chunks
             .map(|val| Column::from_bytes(val, None))
             .filter(PyResult::is_ok)
             .map(PyResult::unwrap)
-            .collect::<Vec<Py<Column>>>())
+            .collect::<Vec<Column>>())
     }
 
     // </editor-fold desc="// Public Methods ...">
-}
-
-#[pymethods]
-impl Column {
-    #[new]
-    fn __new__(
-        name: String,
-        offset: u64,
-        length: u64,
-        data_type: &PyType,
-        py_kwargs: Option<&PyDict>,
-    ) -> PyResult<Self> {
-        let (main_index, related_file, related_field, decimal_points) = match py_kwargs {
-            Some(kwargs) => (
-                match kwargs.get_item("main_index") {
-                    Some(val) => match val.extract::<u64>() {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    },
-                    None => None,
-                },
-                match kwargs.get_item("related_file") {
-                    Some(val) => match val.extract::<u64>() {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    },
-                    None => None,
-                },
-                match kwargs.get_item("related_field") {
-                    Some(val) => match val.extract::<u64>() {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    },
-                    None => None,
-                },
-                match kwargs.get_item("decimal_points") {
-                    Some(val) => val.extract::<u64>().unwrap_or(0u64),
-                    None => 0u64,
-                },
-            ),
-            None => (None, None, None, 0u64),
-        };
-
-        Ok(Self {
-            name,
-            offset,
-            length,
-            data_type: DataType::extract(data_type)?,
-            main_index,
-            related_file,
-            related_field,
-            decimal_points,
-        })
-    }
-
-    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
-        Ok(format!("{}", *slf))
-    }
-
-    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
-        Ok(format!("{}", *slf))
-    }
-
-    fn pretty(slf: PyRef<Self>) -> String {
-        slf._as_pretty_table()
-    }
 }
 
 // </editor-fold desc="// Column ...">

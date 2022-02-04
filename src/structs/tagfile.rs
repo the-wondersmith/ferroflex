@@ -10,14 +10,11 @@ use std::slice::SliceIndex;
 
 // Third-Party Imports
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
-use pyo3::exceptions::{PyIndexError, PyKeyError};
-use pyo3::prelude::*;
-use pyo3::types::PySliceIndices;
+use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
 
 // Crate-Level Imports
 use crate::utils::{bytes_from_file, string_from_path};
-use crate::{iif, AttrIndexSliceOrItem, ValueOrSlice};
 
 // <editor-fold desc="// Custom Types ...">
 
@@ -27,15 +24,12 @@ pub type TagCollection = Vec<String>;
 
 // <editor-fold desc="// Tag File ...">
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[pyclass(dict, module = "ferroflex.structs")]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
 /// A structured representation of a field segment's
 /// definition in the header of a DataFlex table file
 pub struct TagFile {
-    #[pyo3(get)]
     /// The file's absolute on-disk path
     pub filepath: String,
-    #[pyo3(get)]
     /// The column names contained by the file
     pub tags: TagCollection,
 }
@@ -145,81 +139,6 @@ impl TagFile {
     }
 
     // </editor-fold desc="// 'Public' Methods ...">
-}
-
-#[pymethods]
-impl TagFile {
-    #[new]
-    fn __new__(filepath: Option<String>, tags: Option<TagCollection>) -> PyResult<Self> {
-        let mut tag_file: TagFile = match filepath {
-            None => Self::default(),
-            Some(path) => Self::from_filepath(&path)?,
-        };
-
-        if let Some(mut t) = tags {
-            tag_file.tags.append(t.as_mut());
-        }
-
-        Ok(tag_file)
-    }
-
-    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
-        Ok(format!("{}", *slf))
-    }
-
-    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
-        Ok(format!("{}", *slf))
-    }
-
-    fn __getitem__(
-        slf: PyRef<Self>,
-        key: AttrIndexSliceOrItem<&'value str>,
-    ) -> PyResult<ValueOrSlice<String>> {
-        match key {
-            AttrIndexSliceOrItem::Index(idx) => {
-                let idx: isize = iif!(idx > -1, idx, slf.tags.len() as isize + idx);
-
-                if idx < 0 {
-                    return Err(PyIndexError::new_err(""));
-                }
-
-                match slf.tags.get(idx as usize) {
-                    None => Err(PyIndexError::new_err("")),
-                    Some(tag) => Ok(ValueOrSlice::Value(tag.to_string())),
-                }
-            }
-            AttrIndexSliceOrItem::Slice(slc) => {
-                let indexes: PySliceIndices = slc.indices(3)?;
-
-                let (start, end) = (indexes.start, indexes.stop);
-
-                let end: isize = iif!(end > -1, end, slf.tags.len() as isize + end);
-                let start: isize = iif!(start > -1, start, slf.tags.len() as isize + start);
-
-                if start < 0 || end < 0 {
-                    return Err(PyIndexError::new_err(""));
-                }
-
-                let (start, end) = (start as usize, end as usize);
-
-                match slf.tags.get(start..end) {
-                    None => Err(PyIndexError::new_err("")),
-                    Some(tags) => Ok(ValueOrSlice::Slice(tags.to_vec())),
-                }
-            }
-            AttrIndexSliceOrItem::Item(attr) | AttrIndexSliceOrItem::Name(attr) => {
-                match attr.to_lowercase().as_str() {
-                    "tags" => Ok(ValueOrSlice::Slice(slf.tags.to_vec())),
-                    "path" | "filepath" => Ok(ValueOrSlice::Value(slf.filepath.to_string())),
-                    _ => Err(PyKeyError::new_err("")),
-                }
-            }
-        }
-    }
-
-    fn pretty(slf: PyRef<Self>) -> String {
-        slf._as_pretty_table()
-    }
 }
 
 // </editor-fold desc="// Tag File ...">

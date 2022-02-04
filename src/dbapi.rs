@@ -10,17 +10,6 @@ use pyo3::types::PySliceIndices;
 // Crate-Level Imports
 use crate::{iif, AttrIndexSliceOrItem, ValueOrSlice};
 
-// NOTE: At the time of this writing (2022-01-01), this crate is written with a prohibition
-//       against unsafe Rust code. As such, none of the structs exported to Python as classes
-//       implement `core::marker::Send` and are therefore marked "unsendable". This is also
-//       reflected in the value of the `THREADSAFETY` constant below.
-//
-//       In order to "upgrade" the thread safety level of the module, rust's `Send` trait must
-//       be implemented for (at a minimum) the `Connection` and `Cursor` structs. It *may* be
-//       sufficient to simply add an "empty" impl block for each of them. At the time of this
-//       writing it is currently unclear. For reference, an empty impl block for the `Cursor`
-//       struct would simply be: unsafe impl Send for Cursor {}
-
 // <editor-fold desc="// Component Registration ...">
 
 /// Register the Rust code to be "exported" to Python
@@ -65,9 +54,9 @@ pub(crate) fn register_components(py: Python, ferroflex_module: &PyModule) -> Py
 /// Constructor for creating a "connection" to a DataFlex "database" directory
 fn connect(
     database: String,
+    uri: Option<bool>,
     timeout: Option<u16>,
     isolation_level: Option<String>,
-    uri: Option<bool>,
 ) -> PyResult<Connection> {
     // database - path to either the `filelist.cfg` file of the target "database"
     //            -OR-
@@ -146,11 +135,6 @@ unsafe impl Send for Connection {}
 #[allow(unused_variables)]
 #[pymethods]
 impl Connection {
-    #[new]
-    fn new() -> Self {
-        Connection::default()
-    }
-
     #[pyo3(text_signature = "($self) -> None")]
     /// Close the connection now (rather than `__del__()` is called).
     // The connection will be unusable from this point forward; an exception
