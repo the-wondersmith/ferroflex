@@ -1,25 +1,20 @@
 // A DB API v2 compliant Python module
 // see: [PEP 249](https://www.python.org/dev/peps/pep-0249)
 
+// Standard Library Imports
+use std::borrow::Borrow;
+
 // Third-Party Imports
+use gluesql::core::data::Row;
+use gluesql::prelude::*;
 use pyo3;
 use pyo3::exceptions::{PyAttributeError, PyIndexError};
 use pyo3::prelude::*;
 use pyo3::types::PySliceIndices;
 
 // Crate-Level Imports
+use crate::structs::DataFlexDB;
 use crate::{iif, AttrIndexSliceOrItem, ValueOrSlice};
-
-// NOTE: At the time of this writing (2022-01-01), this crate is written with a prohibition
-//       against unsafe Rust code. As such, none of the structs exported to Python as classes
-//       implement `core::marker::Send` and are therefore marked "unsendable". This is also
-//       reflected in the value of the `THREADSAFETY` constant below.
-//
-//       In order to "upgrade" the thread safety level of the module, rust's `Send` trait must
-//       be implemented for (at a minimum) the `Connection` and `Cursor` structs. It *may* be
-//       sufficient to simply add an "empty" impl block for each of them. At the time of this
-//       writing it is currently unclear. For reference, an empty impl block for the `Cursor`
-//       struct would simply be: unsafe impl Send for Cursor {}
 
 // <editor-fold desc="// Component Registration ...">
 
@@ -65,9 +60,9 @@ pub(crate) fn register_components(py: Python, ferroflex_module: &PyModule) -> Py
 /// Constructor for creating a "connection" to a DataFlex "database" directory
 fn connect(
     database: String,
+    uri: Option<bool>,
     timeout: Option<u16>,
     isolation_level: Option<String>,
-    uri: Option<bool>,
 ) -> PyResult<Connection> {
     // database - path to either the `filelist.cfg` file of the target "database"
     //            -OR-
@@ -81,8 +76,12 @@ fn connect(
     //        specify additional options.
 
     Ok(Connection {
-        db_path: Some(database),
-        ..Connection::default()
+        closed: false,
+        total_changes: 0,
+        in_transaction: false,
+        isolation_level,
+        sql_engine: Glue::new(DataFlexDB::from_path(database)?),
+        results: Vec::new(),
     })
 }
 
@@ -115,7 +114,7 @@ pub const PARAMSTYLE: &str = "qmark";
 
 // <editor-fold desc="// Connection ...">
 
-#[derive(Clone, Debug, Default)]
+// #[derive(Clone, Debug, Default)]
 #[pyclass(dict, module = "ferroflex.dbapi")]
 /// A standard DB-API v2 Connection object.
 pub struct Connection {
@@ -135,10 +134,11 @@ pub struct Connection {
     #[pyo3(get)]
     /// The current default isolation level
     pub isolation_level: Option<String>,
-    #[pyo3(get)]
-    /// The path of the DataFlex "database" being
-    /// connected to
-    pub db_path: Option<String>,
+    /// The connection's GlueSQL engine
+    sql_engine: Glue<usize, DataFlexDB>,
+    /// The results of the connection's most recently
+    /// executed query
+    results: Vec<Row>,
 }
 
 unsafe impl Send for Connection {}
@@ -146,9 +146,21 @@ unsafe impl Send for Connection {}
 #[allow(unused_variables)]
 #[pymethods]
 impl Connection {
-    #[new]
-    fn new() -> Self {
-        Connection::default()
+    #[pyo3(text_signature = "($self) -> str")]
+    /// The path of the DataFlex "database" being
+    /// connected to
+    fn db_path(&self) -> PyResult<String> {
+        Ok(self
+            .sql_engine
+            .borrow()
+            .storage
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .db_path
+            .to_str()
+            .unwrap()
+            .to_string())
     }
 
     #[pyo3(text_signature = "($self) -> None")]
@@ -195,8 +207,10 @@ impl Connection {
     /// Prepare and execute a database operation (query or command).
     /// Parameters may be provided as sequence or mapping and will
     /// be bound to variables in the operation.
-    fn execute(&mut self, sql: &str, parameters: Option<Vec<&PyAny>>) -> PyResult<()> {
-        todo!()
+    fn execute(&mut self, sql: &str, parameters: Option<Vec<&PyAny>>) -> PyResult<String> {
+        // let output = glue.execute(sql).unwrap();
+        let result = self.sql_engine.execute(sql).unwrap();
+        Ok(format!("{result:?}"))
     }
 
     #[pyo3(text_signature = "($self) -> Optional[Sequence[Sequence[CursorDescription]]]")]

@@ -1,36 +1,34 @@
 // A structured representation of a collection of DataFlex table files
 
 // Standard Library Imports
+use std::borrow::Borrow;
 use std::fmt;
 use std::iter::IntoIterator;
 use std::ops::Index as Indexable;
 use std::path::PathBuf;
 
 // Third-Party Imports
-#[allow(unused_imports)]
+use gluesql::core::data::Schema;
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
-use pyo3::prelude::*;
+use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
 
 // Crate-Level Imports
 use crate::structs::{DataFlexTable, FileList};
-use crate::{AttrIndexSliceOrItem, ValueOrSlice};
+use crate::utils::{path_from_string, string_from_path};
+use crate::{iif, AttrIndexSliceOrItem};
 
 // <editor-fold desc="// DataFlexDB ...">
 
-#[derive(Debug, Serialize, Deserialize)]
-#[pyclass(dict, module = "ferroflex.structs")]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq, Serialize, Deserialize)]
 /// A structured representation of a collection of DataFlex table files
 pub struct DataFlexDB {
-    #[pyo3(get)]
     /// The db's on-disk path
     pub db_path: PathBuf,
-    #[pyo3(get)]
     /// The db's filelist
-    pub filelist: Py<FileList>,
-    #[pyo3(get)]
+    pub filelist: FileList,
     /// The db's filelist
-    pub tables: Vec<Py<DataFlexTable>>,
+    pub tables: Vec<DataFlexTable>,
 }
 
 unsafe impl Send for DataFlexDB {}
@@ -45,7 +43,7 @@ impl<T: Into<i64>> Indexable<T> for DataFlexDB {
 }
 
 impl IntoIterator for DataFlexDB {
-    type Item = Py<DataFlexTable>;
+    type Item = DataFlexTable;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -60,12 +58,28 @@ impl fmt::Display for DataFlexDB {
     }
 }
 
-#[allow(unused_variables)]
 impl DataFlexDB {
     // <editor-fold desc="// 'Private' Methods ...">
 
     pub(crate) fn _as_pretty_table(&self) -> String {
-        todo!()
+        let mut table = PrettyTable::new();
+
+        self.filelist.iter().for_each(|entry| {
+            table.add_row(PrettyRow::from(vec![
+                PrettyCell::new(entry.file_number.to_string().as_str()),
+                PrettyCell::new(if let Some(df) = &entry.dataflex_name {
+                    df.as_str()
+                } else {
+                    &entry.root_name.as_str()
+                }),
+                PrettyCell::new(match &entry.description {
+                    Some(desc) => desc.as_str(),
+                    _ => "",
+                }),
+            ]));
+        });
+
+        table.to_string()
     }
 
     // </editor-fold desc="// 'Private' Methods ...">
@@ -73,106 +87,85 @@ impl DataFlexDB {
     // <editor-fold desc="// Public Methods ...">
 
     pub fn len(&self) -> usize {
-        Python::with_gil(|py| Py::borrow(&self.filelist, py).len())
+        self.filelist.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    pub fn iter(&self) -> std::vec::IntoIter<DataFlexTable> {
-        todo!()
+    pub fn iter(self) -> std::vec::IntoIter<DataFlexTable> {
+        self.into_iter()
     }
 
     pub fn get(
         &'fl self,
         table: AttrIndexSliceOrItem<DataFlexTable>,
     ) -> Option<&'fl DataFlexTable> {
-        todo!()
+        match table {
+            AttrIndexSliceOrItem::Index(idx) => {
+                let idx: isize = iif!(idx > 0, idx, self.tables.len() as isize + idx);
+                if idx < 0 {
+                    return None;
+                }
+
+                Some(&self.tables[idx as usize])
+            }
+            AttrIndexSliceOrItem::Name(name) => {
+                self.tables.iter().filter(|tbl| *tbl == name).next()
+            }
+            _ => None,
+        }
     }
 
     pub fn contains(&self, table: AttrIndexSliceOrItem<DataFlexTable>) -> bool {
-        todo!()
+        self.get(table).is_some()
     }
 
     pub fn from_path<P: AsRef<str>>(db_path: P) -> PyResult<DataFlexDB> {
-        todo!()
+        let filelist: FileList = FileList::from_path(db_path.borrow().as_ref())?;
+        let db_path: PathBuf = path_from_string(db_path.as_ref(), Some(true));
+
+        let tables: Vec<DataFlexTable> = filelist
+            .borrow()
+            .iter()
+            .map(|file| db_path.join(format!("{}.dat", &file.root_name)))
+            .filter(|path| path.exists() && path.is_file())
+            .map(|path| DataFlexTable::from_path(string_from_path(path.as_path(), Some(false))))
+            .filter(PyResult::is_ok)
+            .map(PyResult::unwrap)
+            .collect();
+
+        Ok(DataFlexDB {
+            db_path,
+            filelist,
+            tables,
+        })
     }
 
+    pub fn schema(&self) -> Vec<Schema> {
+        (&self.tables)
+            .iter()
+            .map(DataFlexTable::schema)
+            .collect::<Vec<Schema>>()
+    }
+
+    #[allow(unused_variables)]
     pub fn create_table(&self) -> PyResult<()> {
         todo!()
     }
 
+    #[allow(unused_variables)]
     pub fn alter_table(&self) -> PyResult<()> {
         todo!()
     }
 
+    #[allow(unused_variables)]
     pub fn drop_table(&self) -> PyResult<()> {
         todo!()
     }
 
     // </editor-fold desc="// Public Methods ...">
-}
-
-#[allow(unused_mut, unused_variables)]
-#[pymethods]
-impl DataFlexDB {
-    #[new]
-    fn __new__(filepath: String) -> PyResult<Self> {
-        Self::from_path(AsRef::<str>::as_ref(&filepath))
-    }
-
-    fn __str__(slf: PyRef<Self>) -> PyResult<String> {
-        Ok(format!("{}", *slf))
-    }
-
-    fn __repr__(slf: PyRef<Self>) -> PyResult<String> {
-        Ok(format!("{}", *slf))
-    }
-
-    fn __len__(slf: PyRef<Self>) -> usize {
-        slf.len() as usize
-    }
-
-    fn __getitem__(
-        slf: PyRef<Self>,
-        key: AttrIndexSliceOrItem<Option<isize>>,
-    ) -> PyResult<ValueOrSlice<DataFlexTable>> {
-        todo!()
-    }
-
-    fn __setitem__(
-        mut slf: PyRefMut<Self>,
-        index: isize,
-        record: PyRef<DataFlexTable>,
-    ) -> PyResult<()> {
-        todo!()
-    }
-
-    fn __delitem__(mut slf: PyRefMut<Self>, index: isize) -> PyResult<()> {
-        todo!()
-    }
-
-    fn __iter__(slf: PyRef<Self>) -> PyResult<PyObject> {
-        todo!()
-    }
-
-    fn __contains__(slf: PyRef<Self>, value: PyObject) -> PyResult<bool> {
-        todo!()
-    }
-
-    fn __reversed__(slf: PyRef<Self>) -> PyResult<Vec<PyObject>> {
-        todo!()
-    }
-
-    fn pretty(slf: PyRef<Self>) -> String {
-        slf._as_pretty_table()
-    }
-
-    #[getter(tables)]
-    fn get_tables(slf: PyRef<Self>) -> PyResult<Vec<DataFlexTable>> {
-        todo!()
-    }
 }
 
 // <editor-fold desc="// DataFlexDB ...">

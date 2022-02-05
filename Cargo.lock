@@ -317,6 +317,7 @@ dependencies = [
 name = "ferroflex"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "bstr",
  "byteorder",
  "cargo-x",
@@ -456,7 +457,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e1e57a112ba3cbac9f0b883feb5cce683e1d1cb0a88aae377f12caebe54ab7a"
 dependencies = [
  "gluesql-core",
- "gluesql-test-suite",
 ]
 
 [[package]]
@@ -482,19 +482,6 @@ dependencies = [
  "sqlparser",
  "strum_macros",
  "thiserror",
- "uuid",
-]
-
-[[package]]
-name = "gluesql-test-suite"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5012069a3b05f83753bfb318559ef55ea482d67012569a2509e36490c72fa2ea"
-dependencies = [
- "async-trait",
- "bigdecimal",
- "chrono",
- "gluesql-core",
  "uuid",
 ]
 
