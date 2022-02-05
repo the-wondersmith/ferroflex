@@ -67,7 +67,7 @@ impl IntoIterator for TagFile {
 impl TagFile {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _as_pretty_table(&self) -> String {
+    pub(crate) fn _as_pretty_table(&self) -> String {
         PrettyTable::from_iter([
             PrettyRow::from(vec![
                 PrettyCell::new("filepath"),

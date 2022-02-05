@@ -1,13 +1,19 @@
 // A DB API v2 compliant Python module
 // see: [PEP 249](https://www.python.org/dev/peps/pep-0249)
 
+// Standard Library Imports
+use std::borrow::Borrow;
+
 // Third-Party Imports
+use gluesql::core::data::Row;
+use gluesql::prelude::*;
 use pyo3;
 use pyo3::exceptions::{PyAttributeError, PyIndexError};
 use pyo3::prelude::*;
 use pyo3::types::PySliceIndices;
 
 // Crate-Level Imports
+use crate::structs::DataFlexDB;
 use crate::{iif, AttrIndexSliceOrItem, ValueOrSlice};
 
 // <editor-fold desc="// Component Registration ...">
@@ -70,8 +76,12 @@ fn connect(
     //        specify additional options.
 
     Ok(Connection {
-        db_path: Some(database),
-        ..Connection::default()
+        closed: false,
+        total_changes: 0,
+        in_transaction: false,
+        isolation_level,
+        sql_engine: Glue::new(DataFlexDB::from_path(database)?),
+        results: Vec::new(),
     })
 }
 
@@ -104,7 +114,7 @@ pub const PARAMSTYLE: &str = "qmark";
 
 // <editor-fold desc="// Connection ...">
 
-#[derive(Clone, Debug, Default)]
+// #[derive(Clone, Debug, Default)]
 #[pyclass(dict, module = "ferroflex.dbapi")]
 /// A standard DB-API v2 Connection object.
 pub struct Connection {
@@ -124,10 +134,11 @@ pub struct Connection {
     #[pyo3(get)]
     /// The current default isolation level
     pub isolation_level: Option<String>,
-    #[pyo3(get)]
-    /// The path of the DataFlex "database" being
-    /// connected to
-    pub db_path: Option<String>,
+    /// The connection's GlueSQL engine
+    sql_engine: Glue<usize, DataFlexDB>,
+    /// The results of the connection's most recently
+    /// executed query
+    results: Vec<Row>,
 }
 
 unsafe impl Send for Connection {}
@@ -135,6 +146,23 @@ unsafe impl Send for Connection {}
 #[allow(unused_variables)]
 #[pymethods]
 impl Connection {
+    #[pyo3(text_signature = "($self) -> str")]
+    /// The path of the DataFlex "database" being
+    /// connected to
+    fn db_path(&self) -> PyResult<String> {
+        Ok(self
+            .sql_engine
+            .borrow()
+            .storage
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .db_path
+            .to_str()
+            .unwrap()
+            .to_string())
+    }
+
     #[pyo3(text_signature = "($self) -> None")]
     /// Close the connection now (rather than `__del__()` is called).
     // The connection will be unusable from this point forward; an exception
@@ -179,8 +207,10 @@ impl Connection {
     /// Prepare and execute a database operation (query or command).
     /// Parameters may be provided as sequence or mapping and will
     /// be bound to variables in the operation.
-    fn execute(&mut self, sql: &str, parameters: Option<Vec<&PyAny>>) -> PyResult<()> {
-        todo!()
+    fn execute(&mut self, sql: &str, parameters: Option<Vec<&PyAny>>) -> PyResult<String> {
+        // let output = glue.execute(sql).unwrap();
+        let result = self.sql_engine.execute(sql).unwrap();
+        Ok(format!("{result:?}"))
     }
 
     #[pyo3(text_signature = "($self) -> Optional[Sequence[Sequence[CursorDescription]]]")]

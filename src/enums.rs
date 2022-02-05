@@ -4,6 +4,8 @@
 use std::fmt;
 
 // Third-Party Imports
+use gluesql::core::ast::DataType as SqlDataType;
+use gluesql::core::data::SchemaIndexOrd;
 use serde::{Deserialize, Serialize};
 
 // <editor-fold desc="// IndexType ...">
@@ -83,6 +85,16 @@ impl fmt::Display for IndexCollation {
     }
 }
 
+impl Into<SchemaIndexOrd> for IndexCollation {
+    fn into(self) -> SchemaIndexOrd {
+        match self {
+            IndexCollation::Ascending => SchemaIndexOrd::Asc,
+            IndexCollation::Default => SchemaIndexOrd::Desc,
+            _ => panic!(),
+        }
+    }
+}
+
 impl<T> From<T> for IndexCollation
 where
     T: AsRef<str>,
@@ -121,6 +133,19 @@ unsafe impl Send for DataType {}
 impl Default for DataType {
     fn default() -> Self {
         Self::Unknown
+    }
+}
+
+impl Into<SqlDataType> for DataType {
+    fn into(self) -> SqlDataType {
+        match self {
+            DataType::Int => SqlDataType::Int,
+            DataType::Date => SqlDataType::Date,
+            DataType::Float => SqlDataType::Float,
+            DataType::Text | DataType::Ascii => SqlDataType::Text,
+            DataType::Binary => SqlDataType::List,
+            DataType::Unknown => panic!(),
+        }
     }
 }
 

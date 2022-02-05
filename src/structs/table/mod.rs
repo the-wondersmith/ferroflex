@@ -3,16 +3,15 @@
 // Submodule Declarations
 pub mod header;
 
-pub use header::Header;
-
 // Standard Library Imports
 use std::fmt;
-use std::iter::IntoIterator;
-use std::ops::Index as Indexable;
+use std::iter::Iterator;
 
 // Third-Party Imports
-use gluesql::core::data::{Row, Value};
-use prettytable::Table as PrettyTable; // Cell, Row as PrintableRow,
+use caseless::compatibility_caseless_match_str as cl_eq;
+use gluesql::core::data::{Row, Schema, Value};
+use gluesql::core::result::Result as SqlResult;
+// use prettytable::{Cell, Row as PrintableRow, Table as PrettyTable};
 use pyo3::exceptions::PyIndexError;
 use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
@@ -23,6 +22,35 @@ use crate::exceptions::NotSupportedError;
 use crate::utils::{
     bytes_from_file, date_from_bytes, float_from_bcd_bytes, int_from_bcd_bytes, string_from_bytes,
 };
+pub use header::Header;
+
+// <editor-fold desc="// TableRowIterator ...">
+
+/// An iterator for the rows in a DataFlex table
+pub struct TableRowIterator {
+    /// The table being iterated over
+    table: DataFlexTable,
+    index: u32,
+}
+
+impl Iterator for TableRowIterator {
+    type Item = SqlResult<(usize, Row)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index as u64 > self.table.len() {
+            return None;
+        }
+
+        self.index += 1;
+
+        match self.table.nth_record(self.index) {
+            Ok(row) => Some(SqlResult::Ok((self.index as usize, row))),
+            Err(_) => None,
+        }
+    }
+}
+
+// </editor-fold desc="// TableRowIterator ...">
 
 // <editor-fold desc="// DataFlexTable ...">
 
@@ -35,24 +63,6 @@ pub struct DataFlexTable {
 
 unsafe impl Send for DataFlexTable {}
 
-impl<T: Into<i64>> Indexable<T> for DataFlexTable {
-    type Output = PyResult<Row>;
-
-    #[allow(unused_variables)]
-    fn index(&self, index: T) -> &'static Self::Output {
-        todo!()
-    }
-}
-
-impl IntoIterator for DataFlexTable {
-    type Item = Row;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        todo!()
-    }
-}
-
 impl fmt::Display for DataFlexTable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -63,14 +73,26 @@ impl fmt::Display for DataFlexTable {
     }
 }
 
+impl<T> PartialEq<T> for DataFlexTable
+where
+    T: AsRef<str> + ?Sized,
+{
+    fn eq(&self, other: &T) -> bool {
+        let slf: &str = self.header.file_root_name.as_str();
+        let other: &str = other.as_ref();
+
+        cl_eq(slf, other)
+    }
+}
+
 impl DataFlexTable {
     // <editor-fold desc="// 'Private' Methods ...">
 
-    fn _as_pretty_table(&self) -> PrettyTable {
+    pub(crate) fn _as_pretty_table(&self) -> String {
         todo!()
     }
 
-    fn nth_record_bytes<I: Into<i64>>(&self, record_number: I) -> PyResult<Vec<u8>> {
+    pub(crate) fn nth_record_bytes<I: Into<i64>>(&self, record_number: I) -> PyResult<Vec<u8>> {
         let record_number: i64 = record_number.into();
 
         let header = &self.header;
@@ -105,7 +127,7 @@ impl DataFlexTable {
         bytes_from_file(&header.filepath, Some(start), Some(end))
     }
 
-    fn record_from_bytes<B: AsRef<[u8]>>(&self, record_data: B) -> PyResult<Row> {
+    pub(crate) fn record_from_bytes<B: AsRef<[u8]>>(&self, record_data: B) -> PyResult<Row> {
         let record_data: &[u8] = record_data.as_ref();
 
         Ok(Row(self
@@ -151,12 +173,15 @@ impl DataFlexTable {
         self.len() == 0
     }
 
-    pub fn iter(&self) -> () {
-        todo!()
+    pub fn iter(self) -> TableRowIterator {
+        TableRowIterator {
+            table: self,
+            index: 0u32,
+        }
     }
 
-    pub fn schema(&self) -> PyResult<Option<()>> {
-        todo!()
+    pub fn schema(&self) -> Schema {
+        Into::<Schema>::into(&self.header)
     }
 
     pub fn from_path<P: AsRef<str>>(table_path: P) -> PyResult<DataFlexTable> {

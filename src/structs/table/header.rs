@@ -7,6 +7,9 @@ use std::fmt;
 // Third-Party Imports
 use byteorder::{ByteOrder, LittleEndian};
 use caseless::compatibility_caseless_match_str as cl_eq;
+use gluesql::core::ast::ColumnDef;
+// use gluesql::core::ast::ColumnDef;
+use gluesql::core::data::Schema;
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
@@ -108,6 +111,35 @@ impl fmt::Display for Header {
             "Header<table_name: {} | df_version: {}>",
             self.file_root_name, self.version
         )
+    }
+}
+
+impl Into<Schema> for Header {
+    fn into(self) -> Schema {
+        Schema {
+            table_name: self.file_root_name,
+            column_defs: self
+                .columns
+                .iter()
+                .map(Into::<ColumnDef>::into)
+                .collect::<Vec<ColumnDef>>(),
+            indexes: Vec::new(), // self.indexes.map(|idx| idx.into()).collect::<Vec<SchemaIndex>>(),
+        }
+    }
+}
+
+impl Into<Schema> for &Header {
+    fn into(self) -> Schema {
+        Schema {
+            table_name: self.file_root_name.clone(),
+            column_defs: self
+                .columns
+                .clone()
+                .iter()
+                .map(Into::<ColumnDef>::into)
+                .collect::<Vec<ColumnDef>>(),
+            indexes: Vec::new(), // self.indexes.map(|idx| idx.into()).collect::<Vec<SchemaIndex>>(),
+        }
     }
 }
 

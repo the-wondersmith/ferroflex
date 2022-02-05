@@ -5,6 +5,7 @@ use std::fmt;
 use std::iter::IntoIterator;
 
 // Third-Party Imports
+use gluesql::core::data::SchemaIndex; // SchemaIndexOrd
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3::exceptions::PyValueError;
 use pyo3::PyResult;
@@ -47,6 +48,17 @@ impl fmt::Display for Index {
                 .join(", "),
             self.collation,
         )
+    }
+}
+
+impl Into<SchemaIndex> for Index {
+    fn into(self) -> SchemaIndex {
+        // SchemaIndex {
+        //     name: String,
+        //     expr: Expr,
+        //     order: SchemaIndexOrd,
+        // }
+        todo!()
     }
 }
 

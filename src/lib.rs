@@ -1,7 +1,14 @@
-#![feature(associated_type_bounds, in_band_lifetimes, never_type)]
+#![feature(
+    generic_associated_types,
+    associated_type_bounds,
+    in_band_lifetimes,
+    never_type
+)]
 #![allow(dead_code, unused_doc_comments)]
 #![allow(clippy::needless_option_as_deref)]
 // A Rust interface for DataFlex flat-file databases w/ DB-API v2 compliant Python bindings
+
+extern crate core;
 
 // Module Declarations
 pub mod dbapi;

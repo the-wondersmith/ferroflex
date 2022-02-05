@@ -6,6 +6,7 @@ use std::fmt;
 
 // Third-Party Imports
 use byteorder::{ByteOrder, LittleEndian};
+use gluesql::core::ast::ColumnDef;
 use prettytable::{Cell as PrettyCell, Row as PrettyRow, Table as PrettyTable};
 use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
@@ -67,6 +68,37 @@ impl fmt::Display for Column {
             "Column<name: '{}' | type: {} | offset: {} | length: {}>",
             self.name, self.data_type, self.offset, self.length,
         )
+    }
+}
+
+impl Into<ColumnDef> for Column {
+    fn into(self) -> ColumnDef {
+        // TODO: Implement `ColumnOptionDef` generation
+        // ColumnOptionDef {
+        //     name: Option<String>,
+        //     option: ColumnOption {
+        //         Null,
+        //         NotNull,
+        //         Default(Expr),
+        //         Unique { is_primary: bool },
+        //     },
+        // }
+
+        ColumnDef {
+            name: self.name,
+            data_type: self.data_type.into(),
+            options: Vec::new(), // Vec<ColumnOptionDef>
+        }
+    }
+}
+
+impl Into<ColumnDef> for &Column {
+    fn into(self) -> ColumnDef {
+        ColumnDef {
+            name: self.name.clone(),
+            data_type: self.data_type.clone().into(),
+            options: Vec::new(), // Vec<ColumnOptionDef>
+        }
     }
 }
 
