@@ -1,8 +1,8 @@
 #![feature(
-    generic_associated_types,
-    associated_type_bounds,
+    never_type,
     in_band_lifetimes,
-    never_type
+    associated_type_bounds,
+    generic_associated_types
 )]
 #![allow(dead_code, unused_doc_comments)]
 #![allow(clippy::needless_option_as_deref)]
@@ -64,9 +64,9 @@ pub fn ferroflex(py: Python, module: &PyModule) -> PyResult<()> {
 
 // <editor-fold desc="// Custom Types ...">
 
-pub trait PyGetterValue<'a, T>
+pub trait PyGetterValue<'value, T>
 where
-    T: Clone + PartialEq<T> + FromPyObject<'a>,
+    T: Clone + PartialEq<T> + FromPyObject<'value>,
 {
 }
 
