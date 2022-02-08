@@ -1,10 +1,10 @@
 // ferroflex's bindings to [GlueSQL](https://github.com/gluesql/gluesql)
 
-mod alter;
-mod index;
-mod metadata;
-mod store;
-mod transaction;
+pub(crate) mod alter;
+pub(crate) mod index;
+pub(crate) mod metadata;
+pub(crate) mod store;
+pub(crate) mod transaction;
 
 // // Third-Party Imports
 // use pyo3::types::PyModule;

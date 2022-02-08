@@ -14,7 +14,7 @@ extern crate core;
 pub mod dbapi;
 pub mod enums;
 pub mod exceptions;
-pub mod sql;
+pub mod gluesql;
 pub mod structs;
 pub mod utils;
 
